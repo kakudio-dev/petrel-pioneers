@@ -63,18 +63,27 @@ export function createBuildingsPanel(colony: Colony) {
     expandBtn.innerHTML = `<span>Expand +${EXPAND_SLOTS} slots</span><span class="cost">${fmt(colony.expandCost)} Fe</span>`;
     expandBtn.disabled = colony.iron < colony.expandCost;
 
+    // Reconcile in place. Existing row nodes are NEVER moved/re-inserted — that would
+    // detach them and cancel any in-flight click (mousedown→mouseup spans frames).
+    // New buildings always append to the end of colony.buildings, so appending new
+    // rows to the end keeps DOM order in sync; state changes rebuild in place.
     const present = new Set<number>();
     for (const b of colony.buildings) {
       present.add(b.id);
-      let row = rows.get(b.id);
-      if (!row || row.state !== b.state) {
+      const row = rows.get(b.id);
+      if (!row) {
         const built = createRow(colony, b);
-        if (row) row.el.replaceWith(built.el);
-        row = built;
-        rows.set(b.id, row);
+        rows.set(b.id, built);
+        blist.appendChild(built.el); // first insert only
+        updateRow(colony, built, b);
+      } else if (row.state !== b.state) {
+        const built = createRow(colony, b);
+        row.el.replaceWith(built.el); // preserves position, no churn elsewhere
+        rows.set(b.id, built);
+        updateRow(colony, built, b);
+      } else {
+        updateRow(colony, row, b); // same node, just refresh dynamic text/progress
       }
-      updateRow(colony, row, b);
-      blist.appendChild(row.el); // re-append in order (moves the node, listeners survive)
     }
     for (const [id, row] of rows) {
       if (!present.has(id)) {

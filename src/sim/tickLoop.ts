@@ -1,15 +1,17 @@
 import { FIXED_DT } from './config';
 
 /**
- * Fixed-timestep accumulator loop (spec §4). The sim steps deterministically;
- * render is decoupled and only reads state. A speed multiplier runs extra steps
- * per frame — handy for feeling the loop fast during prototyping, and the same
- * mechanism makes offline-progress / fast-forward trivial later.
+ * Fixed-timestep accumulator loop. The sim steps deterministically; render is
+ * decoupled and only reads state. A speed multiplier runs extra steps per tick.
+ *
+ * Driven by setInterval rather than requestAnimationFrame so the sim keeps running
+ * when the tab is in the background (RAF is fully paused while hidden) — which also
+ * makes the eventual offline-progress / fast-forward trivial.
  */
 export class TickLoop {
   private accumulator = 0;
   private last = 0;
-  private raf = 0;
+  private timer: ReturnType<typeof setInterval> | undefined;
   speed = 1;
   paused = false;
 
@@ -20,25 +22,26 @@ export class TickLoop {
 
   start(): void {
     this.last = performance.now();
-    const frame = (now: number) => {
-      const realDt = Math.min((now - this.last) / 1000, 0.25); // clamp tab-away spikes
+    this.timer = setInterval(() => {
+      const now = performance.now();
+      // Clamp to 1s so a throttled background tab still advances ~real-time without
+      // a spiral of death after a long pause.
+      const realDt = Math.min((now - this.last) / 1000, 1);
       this.last = now;
       if (!this.paused) {
         this.accumulator += realDt * this.speed;
         let steps = 0;
-        while (this.accumulator >= FIXED_DT && steps < 2000) {
+        while (this.accumulator >= FIXED_DT && steps < 4000) {
           this.step(FIXED_DT);
           this.accumulator -= FIXED_DT;
           steps++;
         }
       }
       this.render();
-      this.raf = requestAnimationFrame(frame);
-    };
-    this.raf = requestAnimationFrame(frame);
+    }, 33); // ~30 ticks/sec while visible
   }
 
   stop(): void {
-    cancelAnimationFrame(this.raf);
+    if (this.timer !== undefined) clearInterval(this.timer);
   }
 }

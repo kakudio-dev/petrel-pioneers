@@ -65,18 +65,18 @@ pattern, plus crew:
   generators, extractors, and greenhouses.
 
 The **Command Module** is the undemolishable anchor: base generation, battery,
-larder, iron stockpile, and crew housing (cap 12). It never consumes a player slot.
+larder, iron stockpile, and crew housing (cap 6). It never consumes a player slot.
 The colony **starts as a bare command module with 6 crew** — no generator or
 extractor — so the opening is a scramble to bootstrap.
 
 ### First failure point — starvation
 
-With no food production at start, the 200-food larder drains at `crew × 0.3/s` and
-empties in ~70s (faster as crew grows toward the housing cap). Then crew starve and
-die; if the colony never gets a greenhouse running it **fails out at ~113s** —
-a **COLONY LOST** overlay with a Restart. The fix is one greenhouse, which feeds the
-colony up to ~20 crew. The food net-flow shows red from the first second, so the
-warning is always on screen — losing means ignoring it.
+Starting crew (6) equals the command module's housing cap, so it doesn't grow
+without habitats — the 200-food larder drains at a steady `6 × 0.3 = 1.8/s` and
+empties at ~111s. Then crew starve and die; if the colony never gets a greenhouse
+running it **fails out at ~140s** — a **COLONY LOST** overlay with a Restart. The fix
+is one greenhouse, which feeds the colony up to ~20 crew. The food net-flow shows red
+from the first second, so the warning is always on screen — losing means ignoring it.
 
 ### The dependency cycle
 

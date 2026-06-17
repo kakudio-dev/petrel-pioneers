@@ -68,7 +68,7 @@ export const IRON_STORAGE: Record<BuildingType, number> = {
 // --- Other building outputs ---
 export const EXTRACTOR_OUTPUT = 8; // +Fe/s (iron) at full staffing & power
 export const HABITAT_CAPACITY = 5; // +crew cap per habitat (throttled by power)
-export const COMMAND_CAPACITY = 12; // guaranteed crew cap from the command module (the floor)
+export const COMMAND_CAPACITY = 6; // base crew cap from the command module
 
 export const BUILD_COST: Record<BuildingType, number> = {
   command: 0, // never built by the player

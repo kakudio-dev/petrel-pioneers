@@ -165,6 +165,6 @@ export const EXPAND_COST_GROWTH = 1.7; // escalating: the difficulty curve lives
 // The colony starts as a bare command module: a full larder and stocks to bootstrap
 // with, but no food production. Get a greenhouse running before the larder empties.
 export const START_E = 200; // start mid-battery
-export const START_IRON = 200;
+export const START_IRON = 0;
 export const START_CREW = 6;
 export const START_FOOD = FOOD_STORAGE.command; // start with a full larder (30)

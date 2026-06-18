@@ -32,8 +32,8 @@ interface Row {
   state: string;
   status: HTMLElement;
   fill: HTMLElement | null; // construction/deconstruction progress
-  pwr: HTMLElement | null; // power meter fill
-  crew: HTMLElement | null; // worker meter fill
+  pwrBlocks: HTMLElement[]; // one per unit of power draw
+  crewBlocks: HTMLElement[]; // one per crew required
   up: HTMLButtonElement | null;
   down: HTMLButtonElement | null;
 }
@@ -133,8 +133,10 @@ export function createBuildingsPanel(colony: Colony) {
   return { el, update };
 }
 
-function meter(kind: string, icon: string): string {
-  return `<span class="meter ${kind}"><span class="mi">${icon}</span><span class="track"><span class="fill" style="width:0%"></span></span></span>`;
+function blocksMeter(kind: string, icon: string, count: number): string {
+  let blks = '';
+  for (let i = 0; i < count; i++) blks += '<span class="blk"></span>';
+  return `<span class="meter" title="${kind === 'pwr' ? 'power' : 'workers'}"><span class="mi">${icon}</span><span class="blocks ${kind}">${blks}</span></span>`;
 }
 function chip(text: string): string {
   return `<span class="chip">${text}</span>`;
@@ -143,8 +145,8 @@ function chip(text: string): string {
 function activeMetersHTML(b: Building): string {
   let html = '';
   if (ENERGY_PRODUCTION[b.type] > 0) html += chip(`⚡ +${ENERGY_PRODUCTION[b.type]}`);
-  if (ENERGY_DRAW[b.type] > 0) html += meter('power', '⚡');
-  if (CREW_REQ[b.type] > 0) html += meter('crew', '👷');
+  if (ENERGY_DRAW[b.type] > 0) html += blocksMeter('pwr', '⚡', ENERGY_DRAW[b.type]);
+  if (CREW_REQ[b.type] > 0) html += blocksMeter('crew', '👷', CREW_REQ[b.type]);
   if (b.capacity > 0) html += chip(`🛏 ${b.capacity}`);
   return `<span class="meters">${html}</span>`;
 }
@@ -189,17 +191,11 @@ function createRow(colony: Colony, b: Building): Row {
     state: b.state,
     status: el.querySelector('.status') as HTMLElement,
     fill: el.querySelector('.bprogress .fill') as HTMLElement | null,
-    pwr: el.querySelector('.meter.power .fill') as HTMLElement | null,
-    crew: el.querySelector('.meter.crew .fill') as HTMLElement | null,
+    pwrBlocks: Array.from(el.querySelectorAll('.blocks.pwr .blk')) as HTMLElement[],
+    crewBlocks: Array.from(el.querySelectorAll('.blocks.crew .blk')) as HTMLElement[],
     up: el.querySelector('.up') as HTMLButtonElement | null,
     down: el.querySelector('.down') as HTMLButtonElement | null,
   };
-}
-
-function lvlClass(level: number): string {
-  if (level >= 0.999) return 'lvl-good';
-  if (level <= 0.001) return 'lvl-bad';
-  return 'lvl-warn';
 }
 
 function updateRow(colony: Colony, row: Row, b: Building): void {
@@ -219,17 +215,19 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
   else if (b.type === 'greenhouse') meta.textContent = `+6 food/s · −5 E/s · needs ${req} crew`;
   else meta.textContent = '−2 E/s housing';
 
-  // A building only draws power when it's actually running (staffed). An idle
-  // consumer shows an empty power meter, not a misleading full one.
+  // Power blocks fill to the power the building is actually drawing now
+  // (draw × staffing × power received), out of its full draw. An idle/unstaffed
+  // consumer draws nothing, so it shows none.
   const drawing = ENERGY_DRAW[b.type] * b.staffing > 0.001;
-  if (row.pwr) {
-    row.pwr.style.width = drawing ? `${Math.round(b.powerLevel * 100)}%` : '0%';
-    row.pwr.className = drawing ? `fill ${lvlClass(b.powerLevel)}` : 'fill';
-  }
-  if (row.crew) {
-    row.crew.style.width = `${Math.round(b.staffing * 100)}%`;
-    row.crew.className = `fill ${lvlClass(b.staffing)}`;
-  }
+  const pwrFilled = Math.round(ENERGY_DRAW[b.type] * b.staffing * b.powerLevel);
+  row.pwrBlocks.forEach((blk, i) => {
+    blk.className = i < pwrFilled ? 'blk on' : 'blk';
+  });
+  // Worker blocks fill to the crew staffing this building.
+  const crewFilled = Math.round(b.staffing * row.crewBlocks.length);
+  row.crewBlocks.forEach((blk, i) => {
+    blk.className = i < crewFilled ? 'blk on' : 'blk';
+  });
 
   // power-status accent: how far the power reaches (only buildings actually drawing)
   row.el.classList.toggle('pwr-good', drawing && b.powerLevel >= 0.999);

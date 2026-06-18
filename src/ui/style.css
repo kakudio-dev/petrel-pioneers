@@ -150,7 +150,17 @@ body {
 .zrow-icon { font-size: 20px; color: var(--accent); }
 .zrow-name { flex: 1; min-width: 0; font-size: 13px; }
 .zrow-chev { color: var(--ink-dim); font-size: 20px; }
+.avail-reward { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
 .zrow.explore { border-style: dashed; }
+
+/* zones reference list */
+.zone-ref { display: flex; flex-direction: column; gap: 8px; }
+.zref {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+}
+.zref.home { border-color: #2d4a5e; background: #14202b; }
+.zref .zrow-name { flex: 1; font-size: 13px; }
 .zrow.home { border-color: #2d4a5e; background: #14202b; }
 .zrow.home .mission-desc { color: var(--ink-dim); }
 .zrow-body { padding: 0 12px 12px; border-top: 1px solid var(--line); margin-top: -1px; padding-top: 12px; }

@@ -25,6 +25,7 @@ export interface Mission {
 let nextId = 1;
 const genId = () => nextId++;
 const stat = () => 3 + Math.floor(Math.random() * 7); // placeholder 3..9
+const rollRange = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
 
 /**
  * A self-contained colony sim object. Owns its slots, stocks, buildings, and
@@ -108,6 +109,20 @@ export class Colony {
     if (c) c.task = task;
   }
 
+  // --- Zone geology ---
+  /** The home zone (where the command hub and all buildings sit). */
+  get homeZone(): Zone | undefined {
+    return this.zones.find((z) => z.home);
+  }
+  /** Home-zone fertility scales greenhouse food output (buildings sit in the home zone). */
+  get fertilityFactor(): number {
+    return this.homeZone?.fertility ?? 1;
+  }
+  /** Home-zone ore richness scales extractor (mine) output. */
+  get oreFactor(): number {
+    return this.homeZone?.oreRichness ?? 1;
+  }
+
   // --- Missions ---
   /** Discovered (non-home) zones. */
   get discoveredCount(): number {
@@ -151,13 +166,16 @@ export class Colony {
     this.zones.push(makeZone(name, kind));
   }
 
-  /** Zone abundance: food drifts with the season, resources slowly recover. */
+  /** Zone abundance: food drifts with the season, resources slowly recover. Each is
+   *  bounded by the zone's geology (fertility / ore richness) and regrows faster the
+   *  richer the zone is. Winter decline is environmental, so it is left unscaled. */
   private updateZones(dt: number): void {
     const idx = Math.floor(this.elapsed / C.SEASON_LENGTH) % C.SEASONS.length;
-    const foodDelta = C.SEASON_FOOD_DELTA[idx] * dt;
+    const season = C.SEASON_FOOD_DELTA[idx];
     for (const z of this.zones) {
-      z.foodAbundance = clamp(z.foodAbundance + foodDelta, 0, 1);
-      z.resourceAbundance = clamp(z.resourceAbundance + C.RESOURCE_REGEN * dt, 0, 1);
+      const foodDelta = (season > 0 ? season * z.fertility : season) * dt;
+      z.foodAbundance = clamp(z.foodAbundance + foodDelta, 0, z.fertility);
+      z.resourceAbundance = clamp(z.resourceAbundance + C.RESOURCE_REGEN * z.oreRichness * dt, 0, z.oreRichness);
     }
   }
 
@@ -303,10 +321,11 @@ export class Colony {
     // 4. Food larder: greenhouses grow it (per-building power & staffing). Gather-food
     //    missions deliver food in batches on completion, not continuously.
     let foodProduction = 0;
+    const fertility = this.fertilityFactor;
     for (const b of active) {
       const base = C.FOOD_PRODUCTION[b.type];
       if (base === 0) continue;
-      foodProduction += base * b.staffing * b.powerLevel;
+      foodProduction += base * b.staffing * b.powerLevel * fertility;
     }
     const foodConsumption = this.crew.length * C.FOOD_PER_CREW;
     const foodCap = this.foodCap;
@@ -343,8 +362,9 @@ export class Colony {
 
     // 7. Iron from extractors (staffing × its power), capped by the stockpile.
     let ironProduced = 0;
+    const oreRichness = this.oreFactor;
     for (const b of active) {
-      if (b.type === 'extractor') ironProduced += C.EXTRACTOR_OUTPUT * b.staffing * b.powerLevel;
+      if (b.type === 'extractor') ironProduced += C.EXTRACTOR_OUTPUT * b.staffing * b.powerLevel * oreRichness;
     }
     this.iron += ironProduced * dt;
     let ironWasted = false;
@@ -481,14 +501,18 @@ function emptyFlows(): Flows {
 }
 
 function makeZone(name: string, kind: string, home = false): Zone {
+  const fertility = home ? C.HOME_FERTILITY : rollRange(C.FERTILITY_RANGE);
+  const oreRichness = home ? C.HOME_ORE_RICHNESS : rollRange(C.ORE_RICHNESS_RANGE);
   return {
     id: genId(),
     name,
     kind,
     home,
-    // home base is well-worked; fresh zones are richer
-    foodAbundance: home ? 0.5 : 0.6 + Math.random() * 0.4,
-    resourceAbundance: home ? 0.5 : 0.6 + Math.random() * 0.4,
+    fertility,
+    oreRichness,
+    // abundance starts at the zone's geological ceiling, then depletes as it's worked
+    foodAbundance: fertility,
+    resourceAbundance: oreRichness,
   };
 }
 

@@ -204,6 +204,12 @@ body {
 .zrow.home { border-color: #2d4a5e; background: #14202b; }
 .zrow.home .mission-desc { color: var(--ink-dim); }
 .zrow-body { padding: 0 12px 12px; border-top: 1px solid var(--line); margin-top: -1px; padding-top: 12px; }
+.zgeo { display: flex; gap: 18px; padding: 0 2px 10px; font-size: 11px; color: var(--ink-dim); }
+.zgeo-item { display: inline-flex; align-items: center; gap: 4px; }
+.zgeo-item b { color: var(--ink); font-weight: 600; }
+.zgeo-item .msym { font-size: 15px; }
+.zgeo-item:first-child .msym { color: #6fcf97; }
+.zgeo-item:last-child .msym { color: #c9a66b; }
 .zone-tag {
   font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
   color: var(--bg); background: var(--accent); border-radius: 4px; padding: 1px 5px;

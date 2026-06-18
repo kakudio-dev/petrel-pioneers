@@ -24,8 +24,12 @@ export interface Zone {
   name: string;
   kind: string; // flavour / hint at what missions it'll support (placeholder)
   home?: boolean; // the command hub's zone
-  foodAbundance: number; // 0..1 — depleted by Gather Food, drifts with the season
-  resourceAbundance: number; // 0..1 — depleted by Gather Resources, slowly recovers
+  // --- Intrinsic geology (rolled once at discovery, never changes) ---
+  fertility: number; // 0..1 — food carrying capacity: caps & scales food abundance + greenhouse output
+  oreRichness: number; // 0..1 — ore carrying capacity: caps & scales resource abundance + extractor output
+  // --- Current harvestable levels (start at the geology ceiling, then deplete) ---
+  foodAbundance: number; // 0..fertility — depleted by Gather Food, regrows with the season
+  resourceAbundance: number; // 0..oreRichness — depleted by Gather Resources, slowly recovers
 }
 
 /** A building under construction, fully operational, or being torn down. Only

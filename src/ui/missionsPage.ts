@@ -91,6 +91,13 @@ export function createMissionsPage(colony: Colony) {
     </div>`;
   }
 
+  function geoHTML(z: { fertility: number; oreRichness: number }): string {
+    return `<div class="zgeo">
+      <span class="zgeo-item"><span class="msym">eco</span> Fertility <b>${Math.round(z.fertility * 100)}%</b></span>
+      <span class="zgeo-item"><span class="msym">diamond</span> Ore richness <b>${Math.round(z.oreRichness * 100)}%</b></span>
+    </div>`;
+  }
+
   function missionSubHTML(zoneId: number, type: MissionType): string {
     const key = `${zoneId}:${type}`;
     const open = teams.has(key);
@@ -113,7 +120,7 @@ export function createMissionsPage(colony: Colony) {
       row.className = `zrow${z.home ? ' home' : ''}${zoneOpen ? ' open' : ''}`;
       const tag = z.home ? '<span class="zone-tag">HUB</span>' : '';
       const body = zoneOpen
-        ? `<div class="zrow-body">${GATHER_TYPES.map((t) => missionSubHTML(z.id, t)).join('')}</div>`
+        ? `<div class="zrow-body">${geoHTML(z)}${GATHER_TYPES.map((t) => missionSubHTML(z.id, t)).join('')}</div>`
         : '';
       row.innerHTML = `
         <div class="zrow-head clickable">

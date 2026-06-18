@@ -60,9 +60,9 @@ pattern, plus crew:
   Crew eat `0.3/s` each, so the larder drains from the first second. Empty larder +
   too little food ⇒ **famine: crew starve and die**. With no food production at all,
   the colony empties out — the **first failure point** (see below).
-- **Iron** (`Fe`) — **Extractors** produce it; spent only on construction/expansion.
+- **Ore** — **Extractors** produce it; spent only on construction/expansion.
   Bounded by a **stockpile** (Command Module 400 + 60/extractor); when full, extractor
-  output is wasted — a nudge to spend it.
+  output is wasted — a nudge to spend it. (Internally still named `iron`.)
 - **Crew** — grows toward capacity (each habitat throttled by its own power, total
   capped by food) and staffs generators, extractors, and greenhouses **by the same
   priority order** — short crew leaves the lowest buildings unstaffed first.

@@ -10,7 +10,7 @@ export function createStocksPanel() {
     <h2>Stocks</h2>
     <div class="stock-grid">
       ${stockCard('energy', 'Energy')}
-      ${stockCard('iron', 'Iron')}
+      ${stockCard('iron', 'Ore')}
       ${stockCard('food', 'Food')}
       ${stockCard('crew', 'Crew')}
       ${stockCard('slots', 'Slots')}

@@ -22,7 +22,7 @@ const TYPE_LABEL: Record<BuildingType, string> = {
 const TYPE_EFFECT: Record<BuildingType, string> = {
   command: '',
   generator: '+10 E/s · +40 battery',
-  extractor: '+8 Fe/s · −4 E/s',
+  extractor: '+8 ore/s · −4 E/s',
   greenhouse: '+6 food/s · −5 E/s',
   habitat: '+5 cap · −2 E/s',
 };
@@ -73,7 +73,7 @@ export function createBuildingsPanel(colony: Colony) {
   for (const t of TYPES) {
     const b = document.createElement('button');
     b.dataset.type = t;
-    b.innerHTML = `<span>${TYPE_LABEL[t]}</span><span class="cost">${BUILD_COST[t]} Fe · ${BUILD_TIME[t]}s · ${TYPE_EFFECT[t]}</span>`;
+    b.innerHTML = `<span>${TYPE_LABEL[t]}</span><span class="cost">${BUILD_COST[t]} ore · ${BUILD_TIME[t]}s · ${TYPE_EFFECT[t]}</span>`;
     b.addEventListener('click', () => colony.build(t));
     actions.appendChild(b);
   }
@@ -91,7 +91,7 @@ export function createBuildingsPanel(colony: Colony) {
     actions.querySelectorAll('button[data-type]').forEach((node) => {
       (node as HTMLButtonElement).disabled = free <= 0;
     });
-    expandBtn.innerHTML = `<span>Expand +${EXPAND_SLOTS} slots</span><span class="cost">${fmt(colony.expandCost)} Fe</span>`;
+    expandBtn.innerHTML = `<span>Expand +${EXPAND_SLOTS} slots</span><span class="cost">${fmt(colony.expandCost)} ore</span>`;
     expandBtn.disabled = colony.iron < colony.expandCost;
 
     // power-budget bar
@@ -179,7 +179,7 @@ function createRow(colony: Colony, b: Building): Row {
 
   if (b.state === 'building') {
     el.className = 'brow building';
-    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">building · ${BUILD_COST[b.type]} Fe over ${BUILD_TIME[b.type]}s</span></span>
+    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">building · ${BUILD_COST[b.type]} ore over ${BUILD_TIME[b.type]}s</span></span>
       <span class="meters"></span>
       <span class="status building">0%</span>
       <button class="kill">Cancel</button>
@@ -187,7 +187,7 @@ function createRow(colony: Colony, b: Building): Row {
     el.querySelector('.kill')!.addEventListener('click', () => colony.cancel(b.id));
   } else if (b.state === 'demolishing') {
     el.className = 'brow demolishing';
-    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">demolishing · refunds ${Math.round(BUILD_COST[b.type] * REFUND_FRACTION)} Fe</span></span>
+    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">demolishing · refunds ${Math.round(BUILD_COST[b.type] * REFUND_FRACTION)} ore</span></span>
       <span class="meters"></span>
       <span class="status demolishing">0%</span>
       <button class="kill">Cancel</button>
@@ -232,7 +232,7 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
   const meta = row.el.querySelector('.meta') as HTMLElement;
   if (b.type === 'command') meta.textContent = 'core · always on · grows no food';
   else if (b.type === 'generator') meta.textContent = `+10 E/s · needs ${req} crew`;
-  else if (b.type === 'extractor') meta.textContent = `+8 Fe/s · −4 E/s · needs ${req} crew`;
+  else if (b.type === 'extractor') meta.textContent = `+8 ore/s · −4 E/s · needs ${req} crew`;
   else if (b.type === 'greenhouse') meta.textContent = `+6 food/s · −5 E/s · needs ${req} crew`;
   else meta.textContent = '−2 E/s housing';
 

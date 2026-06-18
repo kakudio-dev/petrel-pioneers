@@ -23,9 +23,10 @@ npm run dev      # http://localhost:5173
    portfolio drops in later without a rewrite.
 2. **Stocks panel** — energy battery gauge, iron, crew, and slots. The energy
    net-flow (charge/discharge rate) is the "bottleneck coming" signal.
-3. **Buildings panel** — timed construction / deconstruction within slots, plus
-   Tier-1 **Expand**.
-4. **Directives** — Growth Footing and Crew Priority.
+3. **Buildings panel** — timed construction / deconstruction within slots, the
+   power/worker priority order (reorder ▲▼), per-building power & worker meters, a
+   power-budget bar, plus Tier-1 **Expand**.
+4. **Directives** — Growth Footing.
 
 ### Construction & deconstruction
 
@@ -48,11 +49,12 @@ feel out, not balance.
 Three buffered grids, all driven by the same producer / consumer / stored-buffer
 pattern, plus crew:
 
-- **Energy** — an automatic grid, not a dial. Producers (**Command Module** +15,
-  **Generators** +10) feed it; consumers (**Extractors** −4, **Habitats** −2,
-  **Greenhouses** −5) draw from it. The **battery** (Command Module 300 + 40/generator)
-  buffers the difference. Empty battery + demand > generation ⇒ brownout: every
-  consumer runs at `powerRatio = generation / demand` (graceful, never death).
+- **Energy** — an automatic grid. Producers (**Command Module** +15, **Generators**
+  +10) feed it; consumers (**Extractors** −4, **Habitats** −2, **Greenhouses** −5)
+  draw from it. The **battery** (Command Module 300 + 40/generator) buffers the
+  difference. Empty battery + demand > generation ⇒ brownout: power is allocated
+  **by priority** down the building list — top consumers stay fully lit, the building
+  at the cutoff gets partial power, and the rest go dark. Reorder to choose.
 - **Food** — only **Greenhouses** grow it (+6, powered & staffed). The **Command
   Module grows none** — it just ships with a full 200 **larder** (+30/greenhouse).
   Crew eat `0.3/s` each, so the larder drains from the first second. Empty larder +
@@ -61,8 +63,9 @@ pattern, plus crew:
 - **Iron** (`Fe`) — **Extractors** produce it; spent only on construction/expansion.
   Bounded by a **stockpile** (Command Module 400 + 60/extractor); when full, extractor
   output is wasted — a nudge to spend it.
-- **Crew** — grows toward capacity (throttled by power, capped by food) and staffs
-  generators, extractors, and greenhouses.
+- **Crew** — grows toward capacity (each habitat throttled by its own power, total
+  capped by food) and staffs generators, extractors, and greenhouses **by the same
+  priority order** — short crew leaves the lowest buildings unstaffed first.
 
 The **Command Module** is the undemolishable anchor: base generation, battery,
 larder, iron stockpile, and crew housing (cap 6). It never consumes a player slot.
@@ -91,7 +94,7 @@ The core loop is confirmed working via offline simulation + live UI:
 
 - **Honeymoon → warning → brownout:** with a sensible buildout, generation covers
   demand and the battery stays full; over-build consumers and the battery *drains
-  visibly* (the warning) before it empties and the grid throttles.
+  visibly* (the warning) before it empties and the lowest-priority buildings go dark.
 - **The collision:** the deficit lands as slots fill (8/8), producing the target
   feeling: *"I'm out of power AND out of slots — what do I sacrifice?"*
 - **Re-steer resolves it:** demolishing extractors for generators (or switching to
@@ -102,13 +105,16 @@ The core loop is confirmed working via offline simulation + live UI:
 ### Design notes (changed from the first-guess spec)
 
 - **No energy-allocation slider** (spec's Directive 1). Energy is an automatic power
-  grid; the player's energy lever is the generator-vs-consumer build mix. This
-  replaced a slider that felt opaque and could suffocate crew from a dial position.
+  grid; the player's energy lever is the generator-vs-consumer build mix and the
+  priority order.
+- **Power & workers are priority-ordered, not an even draw.** The building list order
+  is the priority; both power and crew fill top-to-bottom, so the player sorts (▲▼)
+  to choose who keeps running. Replaced the earlier proportional throttle.
 - **Per-building fixed power draw** replaces continuous per-crew life support: more
   habitats (to grow crew) means more draw, so the brownout pressure scales with what
   you build.
-- **Brownout is a graceful proportional throttle**, not crew death — the Command
-  Module guarantees a generation + capacity floor the colony always recovers from.
+- **Brownout is non-lethal** (buildings go dark, crew capacity dips) — only the
+  Command Module's base generation keeps a floor. Starvation, by contrast, kills.
 - **Starvation is lethal** — unlike the brownout, an unfed colony actually dies. This
   is the first real lose condition (see *First failure point* above).
 - `CREW_REQ` is 3/building; starting crew is 6 (bare command module).

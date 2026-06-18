@@ -35,7 +35,7 @@ export function createStocksPanel() {
     refs.eVal.textContent = `${fmt(colony.E)} / ${fmt(colony.energyCap)}`;
     setNet(refs.eNet, f.energyNet);
     refs.eSub.textContent = f.brownout
-      ? `⚡ power ${Math.round(f.powerRatio * 100)}% · gen ${f.energyProduction.toFixed(0)} < use ${f.energyConsumption.toFixed(0)}`
+      ? `⚡ ${f.poweredCount}/${f.consumerCount} powered · gen ${f.energyProduction.toFixed(0)} < use ${f.energyConsumption.toFixed(0)}`
       : `gen ${f.energyProduction.toFixed(0)} · use ${f.energyConsumption.toFixed(0)}${f.storageWasted ? ' · full' : ''}`;
     refs.eCard.classList.toggle('alarm', f.brownout);
 

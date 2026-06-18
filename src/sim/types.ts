@@ -18,6 +18,8 @@ export interface Building {
   capacity: number;
   /** 0..1 — fraction of crew demand met for this building (computed each tick). */
   staffing: number;
+  /** 0..1 — fraction of this building's power need met (priority-allocated each tick). */
+  powerLevel: number;
   state: BuildState;
   /** iron consumed so far during construction (drives the 50% cancel refund). */
   invested: number;
@@ -26,9 +28,7 @@ export interface Building {
 }
 
 export interface Directives {
-  /** Directive 2 — staffing priority order. Buildings of earlier types get crew first. */
-  crewPriority: BuildingType[];
-  /** Directive 3 — growth footing mode. */
+  /** Growth footing mode. (Power & worker priority is the building list order now.) */
   footing: Footing;
 }
 
@@ -36,9 +36,10 @@ export interface Directives {
 export interface Flows {
   // Energy grid
   energyProduction: number; // total generation
-  energyConsumption: number; // total demand (pre-throttle)
+  energyConsumption: number; // total demand
   energyNet: number; // battery charge/discharge rate (the "bottleneck coming" signal)
-  powerRatio: number; // 1 = fully powered; <1 = brownout, every consumer throttled
+  poweredCount: number; // consumers receiving full power
+  consumerCount: number; // total power consumers
   storageWasted: boolean; // producing surplus but the battery is full
 
   // Iron

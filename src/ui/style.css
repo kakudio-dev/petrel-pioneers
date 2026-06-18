@@ -128,10 +128,44 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .blist { display: flex; flex-direction: column; gap: 7px; }
 .brow {
-  display: grid; grid-template-columns: 22px 1fr auto auto; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center;
   background: var(--panel-2); border: 1px solid var(--line);
   border-radius: 7px; padding: 8px 10px; font-size: 12px;
 }
+.brow .bname { min-width: 0; }
+.brow.pwr-good { box-shadow: inset 3px 0 0 var(--pos); }
+.brow.pwr-warn { box-shadow: inset 3px 0 0 var(--warn); }
+.brow.pwr-bad { box-shadow: inset 3px 0 0 var(--neg); }
+
+/* per-row power & worker meters */
+.meters { display: flex; gap: 10px; align-items: center; }
+.meter { display: inline-flex; align-items: center; gap: 4px; }
+.meter .mi { font-size: 11px; opacity: 0.85; }
+.meter .track { width: 44px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.meter .fill { height: 100%; border-radius: 3px; transition: width 0.1s linear; }
+.fill.lvl-good { background: var(--pos); }
+.fill.lvl-warn { background: var(--warn); }
+.fill.lvl-bad { background: var(--neg); }
+.chip { font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
+
+/* reorder arrows */
+.arrows { display: flex; flex-direction: column; gap: 2px; }
+.arrows button {
+  background: none; border: 1px solid var(--line); color: var(--ink-dim);
+  border-radius: 4px; cursor: pointer; font-size: 9px; line-height: 1; padding: 2px 6px;
+}
+.arrows button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.arrows button:disabled { opacity: 0.25; cursor: default; }
+
+/* power-budget bar */
+.powerbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 12px; }
+.powerbar .pb-label { color: var(--ink); white-space: nowrap; }
+.powerbar .pb-nums { color: var(--ink-dim); font-size: 11px; white-space: nowrap; }
+.powerbar .pb-track { flex: 1; height: 8px; border-radius: 4px; background: #243140; overflow: hidden; min-width: 60px; }
+.powerbar .pb-track.deficit { background: var(--neg); }
+.powerbar .pb-fill { display: block; height: 100%; background: var(--pos); border-radius: 4px; transition: width 0.1s linear; }
+.powerbar .pb-powered { color: var(--ink-dim); font-size: 11px; white-space: nowrap; }
+.powerbar .pb-powered.bad { color: var(--neg); }
 .brow.queued { border-style: dashed; opacity: 0.8; }
 .brow .dot { width: 10px; height: 10px; border-radius: 50%; }
 .dot.command { background: var(--accent); }

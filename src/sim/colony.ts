@@ -6,17 +6,17 @@ const genId = () => nextId++;
 
 /**
  * A self-contained colony sim object. Owns its slots, stocks, buildings, and
- * directives — no global state. The tick loop just calls step(dt) on "a colony";
- * v0.2 instantiates one, but the multi-colony portfolio (Tier 2) drops in cheaply.
+ * directives — no global state. The tick loop just calls step(dt) on "a colony".
  *
- * Buildings have a lifecycle: 'building' (under construction, drawing iron over
- * time), 'active' (operational), 'demolishing' (inert but still holding its slot
- * while deconstruction runs). Only 'active' buildings produce, consume, house
- * crew, or provide storage.
+ * The building list order IS the priority order: both power and crew are allocated
+ * top-to-bottom. Power flows down the list — each consumer is fully powered until
+ * production + battery runs out; the building at the cutoff gets partial; the rest
+ * go dark. Crew is staffed the same way. The player sorts buildings to choose who
+ * keeps power and workers. The command module is pinned at the top.
  *
- * Three buffered grids drive the loop: an energy power grid (battery buffer,
- * brownout throttle), a food larder (famine — the first failure point), and an
- * iron stockpile spent on construction over time.
+ * Three buffered grids drive the loop: an energy grid (battery buffer, priority
+ * brownout), a food larder (famine — the first failure point), and an iron
+ * stockpile spent on construction over time.
  */
 export class Colony {
   // --- Stocks ---
@@ -32,30 +32,24 @@ export class Colony {
   buildings: Building[] = [];
 
   directives: Directives = {
-    crewPriority: ['generator', 'greenhouse', 'extractor'],
     footing: 'balanced',
   };
 
   flows: Flows = emptyFlows();
-  elapsed = 0; // sim seconds, for the clock
-  failed = false; // the colony has starved out (first failure point)
+  elapsed = 0;
+  failed = false;
 
   constructor() {
-    // The colony starts as a bare, already-built command module: power, battery, a
-    // full larder, and housing — but no food production.
     this.buildings.push(makeBuilding('command', 'active'));
   }
 
   // --- Derived getters ---
-  // Every non-command building holds a slot in every state, including while it is
-  // being constructed or torn down (the slot frees only when deconstruction ends).
   get slotsUsed(): number {
     return this.buildings.filter((b) => b.type !== 'command').length;
   }
   get freeSlots(): number {
     return this.slotCap - this.slotsUsed;
   }
-  // Storage and capacity come only from ACTIVE buildings.
   get energyCap(): number {
     return this.activeSum(C.ENERGY_STORAGE);
   }
@@ -76,27 +70,23 @@ export class Colony {
     return this.buildings.reduce((s, b) => (b.state === 'active' ? s + map[b.type] : s), 0);
   }
 
-  // --- Player actions (Directive 4 + Tier 1 expand) ---
-  /** Start a construction project — reserves the slot, then funds over time. */
+  // --- Player actions ---
   build(type: BuildingType): boolean {
-    if (type === 'command') return false; // never buildable
+    if (type === 'command') return false;
     if (this.freeSlots <= 0) return false;
     this.buildings.push(makeBuilding(type, 'building'));
     return true;
   }
 
-  /** Begin tearing down an active building. It goes inert immediately (crew and
-   *  power freed) but keeps its slot until deconstruction completes. */
   demolish(id: number): void {
     const b = this.buildings.find((x) => x.id === id);
     if (!b || b.type === 'command' || b.state !== 'active') return;
     b.state = 'demolishing';
     b.progress = 0;
     b.staffing = 0;
+    b.powerLevel = 0;
   }
 
-  /** Cancel a construction (50% iron refund, slot freed) or a deconstruction
-   *  (free — the building reverts to fully active). */
   cancel(id: number): void {
     const b = this.buildings.find((x) => x.id === id);
     if (!b || b.type === 'command') return;
@@ -109,6 +99,19 @@ export class Colony {
     }
   }
 
+  /** Raise a building's priority (earlier in the list = power & crew first). */
+  moveUp(id: number): void {
+    const i = this.buildings.findIndex((b) => b.id === id);
+    if (i <= 1) return; // index 0 is the pinned command module
+    [this.buildings[i - 1], this.buildings[i]] = [this.buildings[i], this.buildings[i - 1]];
+  }
+  /** Lower a building's priority. */
+  moveDown(id: number): void {
+    const i = this.buildings.findIndex((b) => b.id === id);
+    if (i < 1 || i >= this.buildings.length - 1) return;
+    [this.buildings[i + 1], this.buildings[i]] = [this.buildings[i], this.buildings[i + 1]];
+  }
+
   expand(): boolean {
     if (this.iron < this.expandCost) return false;
     this.iron -= this.expandCost;
@@ -119,50 +122,59 @@ export class Colony {
 
   // --- The tick ---
   step(dt: number): void {
-    if (this.failed) return; // colony lost — sim is frozen until restart
+    if (this.failed) return;
     this.elapsed += dt;
 
-    // 0. Advance construction & deconstruction projects (spends/refunds iron).
     this.processProjects(dt);
 
     const f = emptyFlows();
     const energyBefore = this.E;
     const foodBefore = this.food;
 
-    // 1. Staffing (Directive 2): crew limits how hard active staffed buildings run.
-    this.assignStaffing();
+    const active = this.buildings.filter((b) => b.state === 'active');
 
-    // 2. Power grid: production vs consumption (active buildings, scaled by staffing).
+    // 1. Staffing (priority order = list order): crew fills buildings top-to-bottom.
+    this.assignStaffing(active);
+
+    // 2. Power grid. Production from staffed producers; consumers draw draw×staffing.
     let production = 0;
-    let consumption = 0;
-    for (const b of this.buildings) {
-      if (b.state !== 'active') continue;
-      production += C.ENERGY_PRODUCTION[b.type] * b.staffing;
-      consumption += C.ENERGY_DRAW[b.type] * b.staffing;
-    }
+    for (const b of active) production += C.ENERGY_PRODUCTION[b.type] * b.staffing;
+    const consumers = active.filter((b) => C.ENERGY_DRAW[b.type] > 0);
+    let demand = 0;
+    for (const b of consumers) demand += C.ENERGY_DRAW[b.type] * b.staffing;
+
+    // 3. Battery buffers; if it can't cover the deficit, power flows down the
+    //    priority order — top consumers stay lit, the rest go dark.
     const cap = this.energyCap;
-    const tentativeE = this.E + (production - consumption) * dt;
-    let powerRatio = 1;
     let storageWasted = false;
+    const tentativeE = this.E + (production - demand) * dt;
     if (tentativeE >= 0) {
+      for (const b of consumers) b.powerLevel = 1;
       if (tentativeE > cap) {
         this.E = cap;
-        storageWasted = production > consumption;
+        storageWasted = production > demand;
       } else {
         this.E = tentativeE;
       }
     } else {
-      powerRatio = consumption > 0 ? clamp(production / consumption, 0, 1) : 1;
+      // battery empties this tick — distribute production + leftover battery by priority
+      let avail = production + energyBefore / dt;
       this.E = 0;
+      for (const b of consumers) {
+        const need = C.ENERGY_DRAW[b.type] * b.staffing;
+        const give = Math.min(need, Math.max(0, avail));
+        b.powerLevel = need > 0 ? give / need : 1;
+        avail -= give;
+      }
     }
+    for (const b of active) if (C.ENERGY_DRAW[b.type] === 0) b.powerLevel = 1; // producers/structural-0
 
-    // 3. Food larder: greenhouses grow it (powered & staffed); crew eat it.
+    // 4. Food larder: greenhouses grow it (per-building power & staffing); crew eat it.
     let foodProduction = 0;
-    for (const b of this.buildings) {
-      if (b.state !== 'active') continue;
+    for (const b of active) {
       const base = C.FOOD_PRODUCTION[b.type];
       if (base === 0) continue;
-      foodProduction += base * b.staffing * powerRatio;
+      foodProduction += base * b.staffing * b.powerLevel;
     }
     const foodConsumption = this.crew * C.FOOD_PER_CREW;
     const foodCap = this.foodCap;
@@ -177,17 +189,15 @@ export class Colony {
       this.food = 0;
     }
 
-    // 4. Crew grows toward housing capacity (power-throttled habitats + command).
+    // 5. Crew grows toward housing capacity (each habitat throttled by its own power).
     let housingCap = 0;
-    for (const b of this.buildings) {
-      if (b.state !== 'active') continue;
-      housingCap += b.type === 'habitat' ? b.capacity * powerRatio : b.capacity;
+    for (const b of active) {
+      housingCap += b.type === 'habitat' ? b.capacity * b.powerLevel : b.capacity;
     }
     const growthRate = C.GROWTH_RATE[this.directives.footing];
-    const crewGrowth =
-      housingCap > 0 ? growthRate * this.crew * (1 - this.crew / housingCap) : 0;
+    const crewGrowth = housingCap > 0 ? growthRate * this.crew * (1 - this.crew / housingCap) : 0;
 
-    // 5. Starvation: an empty larder that can't feed everyone kills the unfed crew.
+    // 6. Starvation: an empty larder that can't feed everyone kills the unfed crew.
     const starveLoss = starving ? this.crew * (1 - foodRatio) * C.STARVE_RATE : 0;
     this.crew += (crewGrowth - starveLoss) * dt;
     if (this.crew < 0) this.crew = 0;
@@ -196,11 +206,10 @@ export class Colony {
       this.failed = true;
     }
 
-    // 6. Iron from extractors (staffing × power), capped by the stockpile.
+    // 7. Iron from extractors (staffing × its power), capped by the stockpile.
     let ironProduced = 0;
-    for (const b of this.buildings) {
-      if (b.state !== 'active') continue;
-      if (b.type === 'extractor') ironProduced += C.EXTRACTOR_OUTPUT * b.staffing * powerRatio;
+    for (const b of active) {
+      if (b.type === 'extractor') ironProduced += C.EXTRACTOR_OUTPUT * b.staffing * b.powerLevel;
     }
     this.iron += ironProduced * dt;
     let ironWasted = false;
@@ -210,12 +219,17 @@ export class Colony {
       ironWasted = ironProduced > 0;
     }
 
-    // Record flows for the UI.
+    // Flows for the UI. Only count consumers that are actually drawing power (a
+    // crewless building has zero power need and isn't "powered" or "in deficit").
+    const drawing = consumers.filter((b) => C.ENERGY_DRAW[b.type] * b.staffing > 0.001);
+    const poweredCount = drawing.filter((b) => b.powerLevel >= 0.999).length;
     f.energyProduction = production;
-    f.energyConsumption = consumption;
+    f.energyConsumption = demand;
     f.energyNet = (this.E - energyBefore) / dt;
-    f.powerRatio = powerRatio;
+    f.poweredCount = poweredCount;
+    f.consumerCount = drawing.length;
     f.storageWasted = storageWasted;
+    f.brownout = poweredCount < drawing.length;
     f.ironProduced = ironProduced;
     f.ironNet = ironWasted ? 0 : ironProduced;
     f.ironWasted = ironWasted;
@@ -226,11 +240,9 @@ export class Colony {
     f.starving = starving;
     f.crewCap = housingCap;
     f.crewNet = crewGrowth - starveLoss;
-    f.brownout = powerRatio < 0.999;
     this.flows = f;
   }
 
-  /** Fund construction over time (iron-gated) and run deconstruction timers. */
   private processProjects(dt: number): void {
     let iron = this.iron;
     const finishedDemolish: number[] = [];
@@ -238,7 +250,6 @@ export class Colony {
       if (b.state === 'building') {
         const cost = C.BUILD_COST[b.type];
         const time = C.BUILD_TIME[b.type];
-        // Most we may invest this tick: enough to advance one time-step of progress.
         const want = time > 0 ? cost * (dt / time) : cost;
         const spend = Math.min(want, iron, cost - b.invested);
         iron -= spend;
@@ -263,15 +274,14 @@ export class Colony {
     }
   }
 
-  /** Distribute crew across ACTIVE buildings in priority order, filling each to CREW_REQ. */
-  private assignStaffing(): void {
-    const order = this.directives.crewPriority;
-    const active = this.buildings.filter((b) => b.state === 'active');
+  /** Staff buildings in list (priority) order, filling each to CREW_REQ. */
+  private assignStaffing(active: Building[]): void {
     for (const b of this.buildings) {
-      if (b.state !== 'active') b.staffing = 0;
+      if (b.state !== 'active') {
+        b.staffing = 0;
+        b.powerLevel = 0;
+      }
     }
-    // Structural buildings (req 0) sort first via indexOf -1; they consume no crew.
-    active.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
     let remaining = this.crew;
     for (const b of active) {
       const req = C.CREW_REQ[b.type];
@@ -302,6 +312,7 @@ function makeBuilding(type: BuildingType, state: BuildState): Building {
     type,
     capacity,
     staffing: 0,
+    powerLevel: 0,
     state,
     invested: state === 'active' ? C.BUILD_COST[type] : 0,
     progress: state === 'active' ? 1 : 0,
@@ -313,7 +324,8 @@ function emptyFlows(): Flows {
     energyProduction: 0,
     energyConsumption: 0,
     energyNet: 0,
-    powerRatio: 1,
+    poweredCount: 0,
+    consumerCount: 0,
     storageWasted: false,
     ironProduced: 0,
     ironNet: 0,

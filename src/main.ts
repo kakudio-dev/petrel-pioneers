@@ -34,7 +34,7 @@ const banner = document.createElement('div');
 banner.className = 'banner';
 
 const POWER_DEFICIT_MSG =
-  '⚠ POWER DEFICIT — consumption exceeds generation and the battery is empty, so every consumer is throttled. Crew capacity drops, iron and food slow. Build a generator, or demolish a consumer to rebalance the grid.';
+  '⚠ POWER DEFICIT — demand exceeds generation and the battery is empty. Power flows by priority, so the buildings lowest in the list go dark first. Build a generator, demolish a consumer, or reorder (▲▼) to choose who stays powered.';
 const FAMINE_MSG =
   '⚠ FAMINE — the larder is empty and there is not enough food. Crew are dying. Get a greenhouse running NOW, or the colony will starve out.';
 

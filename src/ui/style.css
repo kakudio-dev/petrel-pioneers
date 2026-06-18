@@ -145,10 +145,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .blist { display: flex; flex-direction: column; gap: 7px; }
 .brow {
-  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) 100px 84px auto; gap: 10px; align-items: center;
   background: var(--panel-2); border: 1px solid var(--line);
   border-radius: 7px; padding: 8px 10px; font-size: 12px;
 }
+/* construction rows don't have meter columns */
+.brow.building, .brow.demolishing { grid-template-columns: 16px minmax(0, 1fr) auto auto; }
+.brow .col { display: flex; align-items: center; }
+.brow .row-actions { display: flex; align-items: center; gap: 8px; justify-self: end; }
+.prod { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.prod.pwr .msym { color: var(--energy); }
+.prod.people .msym { color: var(--crew); }
 .brow .bname { min-width: 0; }
 .brow.pwr-good { box-shadow: inset 3px 0 0 var(--pos); }
 .brow.pwr-warn { box-shadow: inset 3px 0 0 var(--warn); }
@@ -165,7 +172,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .pips { display: inline-flex; gap: 3px; align-items: center; }
 .pipbox {
   width: 15px; height: 15px; border-radius: 3px;
-  box-shadow: inset 0 0 0 1px #33414f;
+  box-shadow: inset 0 0 0 1px #61748a;
   display: inline-flex; align-items: center; justify-content: center;
 }
 .pipbox .pic { font-size: 12px; line-height: 1; color: transparent; font-variation-settings: 'FILL' 0; }

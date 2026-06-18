@@ -154,24 +154,28 @@ export function createBuildingsPanel(colony: Colony) {
   return { el, update };
 }
 
-// One box per unit needed, with an icon inside; the box state (set in updateRow)
-// shows what's supplying that unit (empty box = unmet).
-function pipsMeter(kind: string, iconName: string, count: number): string {
+// Consumption: one box per unit needed, icon inside (state set in updateRow).
+function boxesCol(kind: string, iconName: string, count: number): string {
   let pips = '';
   for (let i = 0; i < count; i++) pips += `<span class="pipbox"><span class="msym pic">${iconName}</span></span>`;
-  return `<span class="meter" title="${kind === 'pwr' ? 'power' : 'workers'}"><span class="pips ${kind}">${pips}</span></span>`;
+  return `<span class="pips ${kind}">${pips}</span>`;
 }
-function chip(text: string): string {
-  return `<span class="chip">${text}</span>`;
+// Production: a "+N" chip with the resource icon.
+function prodChip(kind: string, iconName: string, n: number): string {
+  return `<span class="prod ${kind}"><span class="msym">${iconName}</span> +${n}</span>`;
 }
 
-function activeMetersHTML(b: Building): string {
-  let html = '';
-  if (ENERGY_PRODUCTION[b.type] > 0) html += chip(`<span class="msym">bolt</span> +${ENERGY_PRODUCTION[b.type]}`);
-  if (ENERGY_DRAW[b.type] > 0) html += pipsMeter('pwr', 'bolt', ENERGY_DRAW[b.type]);
-  if (CREW_REQ[b.type] > 0) html += pipsMeter('crew', 'person', CREW_REQ[b.type]);
-  if (b.capacity > 0) html += chip(`<span class="msym">bed</span> ${b.capacity}`);
-  return `<span class="meters">${html}</span>`;
+// The energy column: produces (chip) or consumes (boxes).
+function energyColHTML(b: Building): string {
+  if (ENERGY_PRODUCTION[b.type] > 0) return prodChip('pwr', 'bolt', ENERGY_PRODUCTION[b.type]);
+  if (ENERGY_DRAW[b.type] > 0) return boxesCol('pwr', 'bolt', ENERGY_DRAW[b.type]);
+  return '';
+}
+// The people column: needs workers (boxes) or provides housing (chip).
+function peopleColHTML(b: Building): string {
+  if (CREW_REQ[b.type] > 0) return boxesCol('crew', 'person', CREW_REQ[b.type]);
+  if (b.capacity > 0) return prodChip('people', 'bed', b.capacity);
+  return '';
 }
 
 function createRow(colony: Colony, b: Building): Row {
@@ -182,7 +186,6 @@ function createRow(colony: Colony, b: Building): Row {
   if (b.state === 'building') {
     el.className = 'brow building';
     el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">building · ${BUILD_COST[b.type]} ore over ${BUILD_TIME[b.type]}s</span></span>
-      <span class="meters"></span>
       <span class="status building">0%</span>
       <button class="kill">Cancel</button>
       <div class="bprogress"><div class="fill build" style="width:0%"></div></div>`;
@@ -190,7 +193,6 @@ function createRow(colony: Colony, b: Building): Row {
   } else if (b.state === 'demolishing') {
     el.className = 'brow demolishing';
     el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">demolishing · refunds ${Math.round(BUILD_COST[b.type] * REFUND_FRACTION)} ore</span></span>
-      <span class="meters"></span>
       <span class="status demolishing">0%</span>
       <button class="kill">Cancel</button>
       <div class="bprogress"><div class="fill demolish" style="width:0%"></div></div>`;
@@ -198,10 +200,13 @@ function createRow(colony: Colony, b: Building): Row {
   } else {
     const isCore = b.type === 'command';
     el.className = isCore ? 'brow core' : 'brow';
+    const actions = isCore
+      ? '<span class="locked">locked</span>'
+      : '<span class="arrows"><button class="up" title="raise priority"><span class="msym">keyboard_arrow_up</span></button><button class="down" title="lower priority"><span class="msym">keyboard_arrow_down</span></button></span><button class="kill">Demolish</button>';
     el.innerHTML = `${dot}${name}
-      ${activeMetersHTML(b)}
-      ${isCore ? '<span class="arrows"></span>' : '<span class="arrows"><button class="up" title="raise priority"><span class="msym">keyboard_arrow_up</span></button><button class="down" title="lower priority"><span class="msym">keyboard_arrow_down</span></button></span>'}
-      ${isCore ? '<span class="locked">locked</span>' : '<button class="kill">Demolish</button>'}`;
+      <span class="col energy" title="energy">${energyColHTML(b)}</span>
+      <span class="col people" title="people">${peopleColHTML(b)}</span>
+      <span class="row-actions">${actions}</span>`;
     if (!isCore) {
       el.querySelector('.kill')!.addEventListener('click', () => colony.demolish(b.id));
       el.querySelector('.up')!.addEventListener('click', () => colony.moveUp(b.id));

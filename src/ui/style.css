@@ -146,8 +146,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   width: 7px; height: 11px; border-radius: 2px;
   background: transparent; box-shadow: inset 0 0 0 1px #33414f;
 }
-.blocks.pwr .blk.on { background: var(--energy); box-shadow: none; }
+.blocks.pwr .blk.gen { background: var(--energy); box-shadow: none; } /* live generation */
+.blocks.pwr .blk.bat { background: rgba(251, 191, 36, 0.28); box-shadow: inset 0 0 0 1.5px var(--energy); } /* on battery */
 .blocks.crew .blk.on { background: var(--accent); box-shadow: none; }
+.blocks.pop .blk.on { background: var(--crew); box-shadow: none; }
 .chip { font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
 
 /* reorder arrows */
@@ -168,6 +170,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .powerbar .pb-fill { display: block; height: 100%; background: var(--pos); border-radius: 4px; transition: width 0.1s linear; }
 .powerbar .pb-powered { color: var(--ink-dim); font-size: 11px; white-space: nowrap; }
 .powerbar .pb-powered.bad { color: var(--neg); }
+
+/* population bar — capacity blocks, filled by actual crew (empty = housing w/o crew) */
+.popbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 12px; }
+.popbar .pb-label { color: var(--ink); white-space: nowrap; }
+.popbar .pb-nums { color: var(--ink-dim); font-size: 11px; white-space: nowrap; }
+.popbar .blocks { flex-wrap: wrap; }
 .brow.queued { border-style: dashed; opacity: 0.8; }
 .brow .dot { width: 10px; height: 10px; border-radius: 50%; }
 .dot.command { background: var(--accent); }

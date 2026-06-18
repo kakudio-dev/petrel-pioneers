@@ -145,31 +145,39 @@ export class Colony {
     let demand = 0;
     for (const b of consumers) demand += C.ENERGY_DRAW[b.type];
 
-    // 3. Battery buffers; if it can't cover the deficit, power flows down the
-    //    priority order — top consumers stay lit, the rest go dark.
+    // 3. Fund consumers in priority order — generation first, then the battery —
+    //    recording each building's split so the UI can show generated vs stored.
     const cap = this.energyCap;
+    let gen = production; // generation budget (rate)
+    const batAvail = this.E / dt; // most the battery can supply this tick (rate)
+    let bat = batAvail;
+    for (const b of consumers) {
+      const need = C.ENERGY_DRAW[b.type];
+      const fromGen = Math.min(need, gen);
+      gen -= fromGen;
+      const fromBat = Math.min(need - fromGen, bat);
+      bat -= fromBat;
+      b.genPower = fromGen;
+      b.batPower = fromBat;
+      b.powerLevel = (fromGen + fromBat) / need;
+    }
+    // Leftover generation charges the battery; whatever it supplied drains it.
+    const batUsed = batAvail - bat;
     let storageWasted = false;
-    const tentativeE = this.E + (production - demand) * dt;
-    if (tentativeE >= 0) {
-      for (const b of consumers) b.powerLevel = 1;
-      if (tentativeE > cap) {
-        this.E = cap;
-        storageWasted = production > demand;
-      } else {
-        this.E = tentativeE;
-      }
-    } else {
-      // battery empties this tick — distribute production + leftover battery by priority
-      let avail = production + energyBefore / dt;
-      this.E = 0;
-      for (const b of consumers) {
-        const need = C.ENERGY_DRAW[b.type];
-        const give = Math.min(need, Math.max(0, avail));
-        b.powerLevel = give / need;
-        avail -= give;
+    let newE = this.E + (gen - batUsed) * dt;
+    if (newE > cap) {
+      storageWasted = gen > 0;
+      newE = cap;
+    }
+    if (newE < 0) newE = 0;
+    this.E = newE;
+    for (const b of active) {
+      if (C.ENERGY_DRAW[b.type] === 0) {
+        b.powerLevel = 1;
+        b.genPower = 0;
+        b.batPower = 0;
       }
     }
-    for (const b of active) if (C.ENERGY_DRAW[b.type] === 0) b.powerLevel = 1; // producers/structural-0
 
     // 4. Food larder: greenhouses grow it (per-building power & staffing); crew eat it.
     let foodProduction = 0;
@@ -281,6 +289,8 @@ export class Colony {
       if (b.state !== 'active') {
         b.staffing = 0;
         b.powerLevel = 0;
+        b.genPower = 0;
+        b.batPower = 0;
       }
     }
     let remaining = this.crew;
@@ -314,6 +324,8 @@ function makeBuilding(type: BuildingType, state: BuildState): Building {
     capacity,
     staffing: 0,
     powerLevel: 0,
+    genPower: 0,
+    batPower: 0,
     state,
     invested: state === 'active' ? C.BUILD_COST[type] : 0,
     progress: state === 'active' ? 1 : 0,

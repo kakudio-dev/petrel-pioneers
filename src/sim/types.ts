@@ -20,6 +20,10 @@ export interface Building {
   staffing: number;
   /** 0..1 — fraction of this building's power need met (priority-allocated each tick). */
   powerLevel: number;
+  /** E/s of this building's draw met from live generation (vs the battery). */
+  genPower: number;
+  /** E/s of this building's draw met from stored battery energy. */
+  batPower: number;
   state: BuildState;
   /** iron consumed so far during construction (drives the 50% cancel refund). */
   invested: number;

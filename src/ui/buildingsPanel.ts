@@ -52,15 +52,23 @@ export function createBuildingsPanel(colony: Colony) {
       <span class="pb-track"><span class="pb-fill"></span></span>
       <span class="pb-powered"></span>
     </div>
+    <div class="popbar">
+      <span class="pb-label">👥 Population</span>
+      <span class="pb-nums"></span>
+      <span class="blocks pop"></span>
+    </div>
     <div class="build-actions"></div>
     <div class="blist"></div>`;
 
   const actions = el.querySelector('.build-actions') as HTMLElement;
   const blist = el.querySelector('.blist') as HTMLElement;
-  const pbNums = el.querySelector('.pb-nums') as HTMLElement;
+  const pbNums = el.querySelector('.powerbar .pb-nums') as HTMLElement;
   const pbFill = el.querySelector('.pb-fill') as HTMLElement;
   const pbTrack = el.querySelector('.pb-track') as HTMLElement;
   const pbPowered = el.querySelector('.pb-powered') as HTMLElement;
+  const popNums = el.querySelector('.popbar .pb-nums') as HTMLElement;
+  const popBlocks = el.querySelector('.blocks.pop') as HTMLElement;
+  let popCount = -1;
 
   for (const t of TYPES) {
     const b = document.createElement('button');
@@ -94,6 +102,19 @@ export function createBuildingsPanel(colony: Colony) {
     pbTrack.classList.toggle('deficit', f.energyProduction < f.energyConsumption - 0.01);
     pbPowered.textContent = `${f.poweredCount}/${f.consumerCount} powered`;
     pbPowered.classList.toggle('bad', f.poweredCount < f.consumerCount);
+
+    // population bar: one block per unit of housing capacity, filled by actual crew.
+    // Empty blocks are housing we have but lack the crew to fill.
+    const capacity = Math.round(colony.crewCapacity);
+    const crewN = Math.round(colony.crew);
+    popNums.textContent = `${crewN} / ${capacity}`;
+    if (capacity !== popCount) {
+      popBlocks.innerHTML = '<span class="blk"></span>'.repeat(capacity);
+      popCount = capacity;
+    }
+    Array.from(popBlocks.children).forEach((blk, i) => {
+      (blk as HTMLElement).className = i < crewN ? 'blk on' : 'blk';
+    });
 
     // reconcile rows (create/replace/remove — never move existing nodes here)
     const present = new Set<number>();
@@ -215,13 +236,16 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
   else if (b.type === 'greenhouse') meta.textContent = `+6 food/s · −5 E/s · needs ${req} crew`;
   else meta.textContent = '−2 E/s housing';
 
-  // A standing consumer draws its full power regardless of staffing, so power
-  // blocks fill to the power it's receiving out of that full draw — an idle but
-  // built consumer still shows (and wastes) its draw.
+  // A standing consumer draws its full power regardless of staffing. Each filled
+  // block is sourced from live generation (solid) or the battery (hollow) so a
+  // colony running on reserves is visible before the battery empties.
   const consumes = ENERGY_DRAW[b.type] > 0;
-  const pwrFilled = Math.round(b.powerLevel * row.pwrBlocks.length);
+  const genBlocks = Math.round(b.genPower);
+  const litBlocks = Math.round(b.genPower + b.batPower);
   row.pwrBlocks.forEach((blk, i) => {
-    blk.className = i < pwrFilled ? 'blk on' : 'blk';
+    if (i < genBlocks) blk.className = 'blk on gen';
+    else if (i < litBlocks) blk.className = 'blk on bat';
+    else blk.className = 'blk';
   });
   // Worker blocks fill to the crew staffing this building.
   const crewFilled = Math.round(b.staffing * row.crewBlocks.length);

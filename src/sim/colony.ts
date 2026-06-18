@@ -139,9 +139,11 @@ export class Colony {
     // 2. Power grid. Production from staffed producers; consumers draw draw×staffing.
     let production = 0;
     for (const b of active) production += C.ENERGY_PRODUCTION[b.type] * b.staffing;
+    // A built consumer draws its FULL power as long as it's standing — whether or
+    // not it's staffed or producing. Idle buildings are an ongoing burden.
     const consumers = active.filter((b) => C.ENERGY_DRAW[b.type] > 0);
     let demand = 0;
-    for (const b of consumers) demand += C.ENERGY_DRAW[b.type] * b.staffing;
+    for (const b of consumers) demand += C.ENERGY_DRAW[b.type];
 
     // 3. Battery buffers; if it can't cover the deficit, power flows down the
     //    priority order — top consumers stay lit, the rest go dark.
@@ -161,9 +163,9 @@ export class Colony {
       let avail = production + energyBefore / dt;
       this.E = 0;
       for (const b of consumers) {
-        const need = C.ENERGY_DRAW[b.type] * b.staffing;
+        const need = C.ENERGY_DRAW[b.type];
         const give = Math.min(need, Math.max(0, avail));
-        b.powerLevel = need > 0 ? give / need : 1;
+        b.powerLevel = give / need;
         avail -= give;
       }
     }
@@ -219,17 +221,16 @@ export class Colony {
       ironWasted = ironProduced > 0;
     }
 
-    // Flows for the UI. Only count consumers that are actually drawing power (a
-    // crewless building has zero power need and isn't "powered" or "in deficit").
-    const drawing = consumers.filter((b) => C.ENERGY_DRAW[b.type] * b.staffing > 0.001);
-    const poweredCount = drawing.filter((b) => b.powerLevel >= 0.999).length;
+    // Flows for the UI. Every standing consumer draws full power, so all of them
+    // count toward the grid load.
+    const poweredCount = consumers.filter((b) => b.powerLevel >= 0.999).length;
     f.energyProduction = production;
     f.energyConsumption = demand;
     f.energyNet = (this.E - energyBefore) / dt;
     f.poweredCount = poweredCount;
-    f.consumerCount = drawing.length;
+    f.consumerCount = consumers.length;
     f.storageWasted = storageWasted;
-    f.brownout = poweredCount < drawing.length;
+    f.brownout = poweredCount < consumers.length;
     f.ironProduced = ironProduced;
     f.ironNet = ironWasted ? 0 : ironProduced;
     f.ironWasted = ironWasted;

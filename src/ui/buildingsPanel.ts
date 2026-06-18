@@ -215,11 +215,11 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
   else if (b.type === 'greenhouse') meta.textContent = `+6 food/s · −5 E/s · needs ${req} crew`;
   else meta.textContent = '−2 E/s housing';
 
-  // Power blocks fill to the power the building is actually drawing now
-  // (draw × staffing × power received), out of its full draw. An idle/unstaffed
-  // consumer draws nothing, so it shows none.
-  const drawing = ENERGY_DRAW[b.type] * b.staffing > 0.001;
-  const pwrFilled = Math.round(ENERGY_DRAW[b.type] * b.staffing * b.powerLevel);
+  // A standing consumer draws its full power regardless of staffing, so power
+  // blocks fill to the power it's receiving out of that full draw — an idle but
+  // built consumer still shows (and wastes) its draw.
+  const consumes = ENERGY_DRAW[b.type] > 0;
+  const pwrFilled = Math.round(b.powerLevel * row.pwrBlocks.length);
   row.pwrBlocks.forEach((blk, i) => {
     blk.className = i < pwrFilled ? 'blk on' : 'blk';
   });
@@ -229,10 +229,10 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
     blk.className = i < crewFilled ? 'blk on' : 'blk';
   });
 
-  // power-status accent: how far the power reaches (only buildings actually drawing)
-  row.el.classList.toggle('pwr-good', drawing && b.powerLevel >= 0.999);
-  row.el.classList.toggle('pwr-warn', drawing && b.powerLevel > 0.001 && b.powerLevel < 0.999);
-  row.el.classList.toggle('pwr-bad', drawing && b.powerLevel <= 0.001);
+  // power-status accent: how far the power reaches (every standing consumer)
+  row.el.classList.toggle('pwr-good', consumes && b.powerLevel >= 0.999);
+  row.el.classList.toggle('pwr-warn', consumes && b.powerLevel > 0.001 && b.powerLevel < 0.999);
+  row.el.classList.toggle('pwr-bad', consumes && b.powerLevel <= 0.001);
 
   // reorder arrow availability
   const idx = colony.buildings.findIndex((x) => x.id === b.id);

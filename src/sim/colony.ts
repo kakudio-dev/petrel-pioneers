@@ -152,16 +152,39 @@ export class Colony {
   private foundBy(crew: number, abundance: number): number {
     return crew * C.CREW_FIND_RATE * abundance;
   }
-  /** Resources actually carried home by a gather run (what lands in the stockpile). Food
-   *  is capped at CREW_CARRY_FOOD per crew; ore has no carry limit. */
+  /** Food carried home from a given food-abundance level (capped at CREW_CARRY_FOOD/crew). */
+  private carriedFood(crew: number, foodAbundance: number): number {
+    return Math.round(crew * Math.min(C.CREW_FIND_RATE * foodAbundance, C.CREW_CARRY_FOOD));
+  }
+  /** Resources actually carried home by a gather run, from the zone's CURRENT abundance —
+   *  used when the run resolves. Food is capped at CREW_CARRY_FOOD/crew; ore has no cap. */
   missionYield(type: MissionType, zoneId: number | null, crew: number): number {
     const zone = this.zones.find((z) => z.id === zoneId);
     if (!zone || type === 'explore' || crew <= 0) return 0;
-    if (type === 'gatherFood') {
-      const perCrew = Math.min(C.CREW_FIND_RATE * zone.foodAbundance, C.CREW_CARRY_FOOD);
-      return Math.round(crew * perCrew);
-    }
+    if (type === 'gatherFood') return this.carriedFood(crew, zone.foodAbundance);
     return Math.round(this.foundBy(crew, zone.resourceAbundance));
+  }
+  /** Pre-launch preview of a run's yield. Unlike missionYield this projects food abundance
+   *  forward to when the run RETURNS — applying any season change(s) crossed during the
+   *  run — so the predicted food matches what actually comes back. Ore ignores seasons. */
+  missionForecast(type: MissionType, zoneId: number | null, crew: number): number {
+    const zone = this.zones.find((z) => z.id === zoneId);
+    if (!zone || type === 'explore' || crew <= 0) return 0;
+    if (type === 'gatherFood') return this.carriedFood(crew, this.projectedFoodAbundance(zone));
+    return Math.round(this.foundBy(crew, zone.resourceAbundance));
+  }
+  /** A zone's food abundance projected to mission-return time (now + GATHER_DURATION),
+   *  applying each season change the run will cross. */
+  private projectedFoodAbundance(zone: Zone): number {
+    const fromSeason = Math.floor(this.elapsed / C.SEASON_LENGTH);
+    const toSeason = Math.floor((this.elapsed + C.GATHER_DURATION) / C.SEASON_LENGTH);
+    let food = zone.foodAbundance;
+    const fertScore = zone.fertility * C.MAX_ABUNDANCE;
+    for (let s = fromSeason + 1; s <= toSeason; s++) {
+      const idx = s % C.SEASONS.length;
+      food = Math.round((food + C.SEASON_FOOD_GROWTH[idx] * fertScore) * (1 - C.SEASON_FOOD_DECAY[idx]));
+    }
+    return food;
   }
   /** Launch a mission with a fixed team (crew ids) targeting an optional zone. */
   launchMission(type: MissionType, zoneId: number | null, crewIds: number[]): boolean {

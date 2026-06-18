@@ -50,8 +50,8 @@ export function createMissionsPage(colony: Colony) {
 
   function rewardText(type: MissionType, zoneId: number | null, crew: number): string {
     if (type === 'explore') return colony.zonesRemaining ? 'Discover a new zone' : 'Region fully explored';
-    if (type === 'gatherFood') return `+${colony.missionYield('gatherFood', zoneId, crew)} food`;
-    return `+${colony.missionYield('gatherResources', zoneId, crew)} ore`;
+    if (type === 'gatherFood') return `+${colony.missionForecast('gatherFood', zoneId, crew)} food`;
+    return `+${colony.missionForecast('gatherResources', zoneId, crew)} ore`;
   }
 
   // Crew may be staged in multiple pending setups at once; they only become

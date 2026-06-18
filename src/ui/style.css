@@ -178,6 +178,16 @@ body {
 .crew-add:hover { border-color: var(--accent); color: var(--accent); }
 .crew-add .msym { font-size: 16px; }
 
+/* recent completed missions log */
+.recent-list { display: flex; flex-direction: column; gap: 6px; }
+.recent-row {
+  display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+}
+.recent-icon { font-size: 20px; color: var(--accent); }
+.recent-main { flex: 1; min-width: 0; font-size: 13px; }
+.recent-result { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+
 /* setup (inside an expanded zone row) */
 .setup-types { display: flex; align-items: center; gap: 8px; }
 .setup-types .mt.active { border-color: var(--accent); color: var(--accent); background: #16242f; }

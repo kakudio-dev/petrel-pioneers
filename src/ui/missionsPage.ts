@@ -1,4 +1,4 @@
-import type { Colony, MissionType } from '../sim/colony';
+import type { Colony, CompletedMission, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
 
 const LABEL: Record<MissionType, string> = {
@@ -29,17 +29,23 @@ export function createMissionsPage(colony: Colony) {
     <div class="panel">
       <h2>Zones <span class="zone-count"></span></h2>
       <div class="zone-list"></div>
+    </div>
+    <div class="panel">
+      <h2>Recent Missions</h2>
+      <div class="recent-list"><div class="empty">No completed missions yet.</div></div>
     </div>`;
 
   const activeCount = el.querySelector('.active-count') as HTMLElement;
   const activeList = el.querySelector('.active-list') as HTMLElement;
   const zoneCount = el.querySelector('.zone-count') as HTMLElement;
   const zoneList = el.querySelector('.zone-list') as HTMLElement;
+  const recentList = el.querySelector('.recent-list') as HTMLElement;
 
   const openZones = new Set<number>(); // expanded zone ids (multiple allowed)
   const teams = new Map<string, Set<number>>(); // open mission setup -> staged crew
   let activeSig = '';
   let zoneSig = '';
+  let recentSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement }>();
 
   function rewardText(type: MissionType, zoneId: number | null, crew: number): string {
@@ -256,6 +262,15 @@ export function createMissionsPage(colony: Colony) {
       if (f) f.textContent = `${Math.round(z.foodAbundance)}`;
       if (r) r.textContent = `${Math.round(z.resourceAbundance)}`;
     }
+
+    // recent completed missions (re-render only when the log changes)
+    const rsig = colony.completedMissions.map((m) => m.id).join(',');
+    if (rsig !== recentSig) {
+      recentSig = rsig;
+      recentList.innerHTML = colony.completedMissions.length
+        ? colony.completedMissions.map(recentRowHTML).join('')
+        : '<div class="empty">No completed missions yet.</div>';
+    }
   }
 
   return { el, update };
@@ -266,6 +281,23 @@ function statsHTML(c: CrewMember): string {
     (s) =>
       `<span class="cstat"><span class="cstat-l">${s.label}</span><span class="cbar"><span class="cbarf" style="width:${c.stats[s.key] * 10}%"></span></span></span>`,
   ).join('');
+}
+
+function recentRowHTML(m: CompletedMission): string {
+  let sub: string;
+  let result: string;
+  if (m.type === 'explore') {
+    sub = `${m.crew} crew`;
+    result = m.zoneName ? `Discovered ${m.zoneName}` : 'Region explored';
+  } else {
+    sub = `${m.zoneName} · ${m.crew} crew`;
+    result = m.type === 'gatherFood' ? `+${m.amount} food` : `+${m.amount} ore`;
+  }
+  return `<div class="recent-row">
+    <span class="msym recent-icon">${ICON[m.type]}</span>
+    <span class="recent-main"><b>${LABEL[m.type]}</b> <span class="mission-desc">${sub}</span></span>
+    <span class="recent-result">${result}</span>
+  </div>`;
 }
 
 function crewRowHTML(c: CrewMember, removable = false): string {

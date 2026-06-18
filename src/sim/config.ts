@@ -115,6 +115,7 @@ export const CREW_FIND_RATE = 0.05; // share of current abundance each crew find
 export const CREW_CARRY_FOOD = 5; // max food a single crew can carry back from a run
 export const EXPLORE_DURATION = 22; // seconds to discover a new zone
 export const GATHER_DURATION = 26; // seconds for a gather run
+export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log
 // Abundance is a 0..MAX_ABUNDANCE score. It only changes on discrete events — never
 // continuously over time.
 export const MAX_ABUNDANCE = 100;

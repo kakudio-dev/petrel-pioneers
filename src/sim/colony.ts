@@ -22,6 +22,15 @@ export interface Mission {
   duration: number;
 }
 
+/** A finished expedition, kept for the recent-missions log. */
+export interface CompletedMission {
+  id: number;
+  type: MissionType;
+  zoneName: string; // target zone, or the newly discovered zone for explore
+  crew: number;
+  amount: number; // food/ore delivered (0 for explore)
+}
+
 let nextId = 1;
 const genId = () => nextId++;
 const stat = () => 3 + Math.floor(Math.random() * 7); // placeholder 3..9
@@ -54,6 +63,7 @@ export class Colony {
   // --- Missions & discovered zones ---
   zones: Zone[] = [];
   activeMissions: Mission[] = [];
+  completedMissions: CompletedMission[] = []; // newest first, capped at C.RECENT_MISSIONS
 
   // --- Space ---
   slotCap = C.SLOT_CAP_START;
@@ -170,11 +180,12 @@ export class Colony {
     this.activeMissions = this.activeMissions.filter((m) => m.id !== id);
   }
 
-  private discoverZone(): void {
-    if (!this.zonesRemaining) return;
+  private discoverZone(): string | undefined {
+    if (!this.zonesRemaining) return undefined;
     const name = C.ZONE_NAMES[this.discoveredCount];
     const kind = C.ZONE_KINDS[Math.floor(Math.random() * C.ZONE_KINDS.length)];
     this.zones.push(makeZone(name, kind));
+    return name;
   }
 
   /** Applied once each time the colony enters a new season: every zone's food abundance
@@ -198,21 +209,27 @@ export class Colony {
       if (m.elapsed >= m.duration) {
         const zone = this.zones.find((z) => z.id === m.zoneId);
         const crew = m.crewIds.length;
+        let amount = 0;
+        let zoneName = zone?.name ?? '';
         if (m.type === 'explore') {
-          this.discoverZone();
+          zoneName = this.discoverZone() ?? '';
         } else if (m.type === 'gatherFood') {
-          this.food = Math.min(this.foodCap, this.food + this.missionYield('gatherFood', m.zoneId, crew));
+          amount = this.missionYield('gatherFood', m.zoneId, crew);
+          this.food = Math.min(this.foodCap, this.food + amount);
           if (zone) {
             const found = this.foundBy(crew, zone.foodAbundance);
             zone.foodAbundance = Math.max(0, Math.round(zone.foodAbundance - found));
           }
         } else {
-          this.iron = Math.min(this.ironCap, this.iron + this.missionYield('gatherResources', m.zoneId, crew));
+          amount = this.missionYield('gatherResources', m.zoneId, crew);
+          this.iron = Math.min(this.ironCap, this.iron + amount);
           if (zone) {
             const found = this.foundBy(crew, zone.resourceAbundance);
             zone.resourceAbundance = Math.max(0, Math.round(zone.resourceAbundance - found));
           }
         }
+        this.completedMissions.unshift({ id: m.id, type: m.type, zoneName, crew, amount });
+        if (this.completedMissions.length > C.RECENT_MISSIONS) this.completedMissions.pop();
         done.push(m.id);
       }
     }

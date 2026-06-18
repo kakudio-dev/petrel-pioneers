@@ -127,8 +127,8 @@ export function createMissionsPage(colony: Colony) {
           <span class="msym zrow-icon">${z.home ? 'hub' : 'place'}</span>
           <span class="zrow-name"><b>${z.name}</b> <span class="mission-desc">${z.kind}</span></span>
           <span class="zstats">
-            <span class="zstat" title="Food abundance"><span class="msym">grass</span> <span data-zfood="${z.id}">${Math.round(z.foodAbundance * 100)}%</span></span>
-            <span class="zstat" title="Resource abundance"><span class="msym">terrain</span> <span data-zres="${z.id}">${Math.round(z.resourceAbundance * 100)}%</span></span>
+            <span class="zstat" title="Food abundance"><span class="msym">grass</span> <span data-zfood="${z.id}">${Math.round(z.foodAbundance)}</span></span>
+            <span class="zstat" title="Resource abundance"><span class="msym">terrain</span> <span data-zres="${z.id}">${Math.round(z.resourceAbundance)}</span></span>
           </span>
           ${tag}<span class="msym zrow-chev">${zoneOpen ? 'expand_less' : 'expand_more'}</span>
         </div>${body}`;
@@ -258,8 +258,8 @@ export function createMissionsPage(colony: Colony) {
     for (const z of colony.zones) {
       const f = zoneList.querySelector(`[data-zfood="${z.id}"]`);
       const r = zoneList.querySelector(`[data-zres="${z.id}"]`);
-      if (f) f.textContent = `${Math.round(z.foodAbundance * 100)}%`;
-      if (r) r.textContent = `${Math.round(z.resourceAbundance * 100)}%`;
+      if (f) f.textContent = `${Math.round(z.foodAbundance)}`;
+      if (r) r.textContent = `${Math.round(z.resourceAbundance)}`;
     }
   }
 

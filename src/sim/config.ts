@@ -109,11 +109,14 @@ export const EXPLORE_DURATION = 22; // seconds to discover a new zone
 export const GATHER_DURATION = 26; // seconds for a gather run
 export const GATHER_FOOD_AMOUNT = 80; // food returned by a Gather Food run at full (1.0) abundance
 export const GATHER_ORE_AMOUNT = 100; // ore returned by a Gather Resources run at full abundance
-export const GATHER_DEPLETION = 0.25; // abundance a zone loses per gather run
-export const RESOURCE_REGEN = 0.004; // resource abundance regained per second (at full ore richness)
-// Food abundance drift per second by season (index matches SEASONS: Thaw, Highsun, Wane, Dark).
-// Positive (growth) seasons are scaled by a zone's fertility; winter decline is unscaled.
-export const SEASON_FOOD_DELTA = [0.006, 0.01, -0.004, -0.008];
+// Abundance is a 0..MAX_ABUNDANCE score (capped per zone by its geology). It only
+// changes on discrete events — never continuously over time.
+export const MAX_ABUNDANCE = 100;
+export const GATHER_DEPLETION = 25; // abundance points a zone loses per gather run
+// Food abundance step applied once each time the colony ENTERS a season (index matches
+// SEASONS: Thaw, Highsun, Wane, Dark). Growth (positive) is scaled by a zone's fertility;
+// winter decline is unscaled. Ore abundance is unaffected by seasons.
+export const SEASON_FOOD_STEP = [12, 18, -8, -15];
 
 // --- Zone geology (intrinsic, rolled once when a zone is discovered) ---
 // Fertility is the food carrying capacity: it caps food abundance, scales how fast

@@ -64,6 +64,7 @@ export class Colony {
   flows: Flows = emptyFlows();
   elapsed = 0;
   failed = false;
+  private seasonIndex = 0; // current season (0 = Thaw at t=0); used to fire season-change events
 
   constructor() {
     this.buildings.push(makeBuilding('command', 'active'));
@@ -134,12 +135,13 @@ export class Colony {
   missionDuration(type: MissionType): number {
     return type === 'explore' ? C.EXPLORE_DURATION : C.GATHER_DURATION;
   }
-  /** Expected yield of a gather mission, scaled by the target zone's abundance. */
+  /** Expected yield of a gather mission, scaled by the target zone's abundance score. */
   missionYield(type: MissionType, zoneId: number | null): number {
     const zone = this.zones.find((z) => z.id === zoneId);
-    if (type === 'gatherFood') return Math.round((zone?.foodAbundance ?? 1) * C.GATHER_FOOD_AMOUNT);
-    if (type === 'gatherResources') return Math.round((zone?.resourceAbundance ?? 1) * C.GATHER_ORE_AMOUNT);
-    return 0;
+    const score = type === 'gatherResources' ? zone?.resourceAbundance : zone?.foodAbundance;
+    const amount = type === 'gatherResources' ? C.GATHER_ORE_AMOUNT : C.GATHER_FOOD_AMOUNT;
+    if (type === 'explore') return 0;
+    return Math.round(((score ?? C.MAX_ABUNDANCE) / C.MAX_ABUNDANCE) * amount);
   }
   /** Launch a mission with a fixed team (crew ids) targeting an optional zone. */
   launchMission(type: MissionType, zoneId: number | null, crewIds: number[]): boolean {
@@ -166,16 +168,15 @@ export class Colony {
     this.zones.push(makeZone(name, kind));
   }
 
-  /** Zone abundance: food drifts with the season, resources slowly recover. Each is
-   *  bounded by the zone's geology (fertility / ore richness) and regrows faster the
-   *  richer the zone is. Winter decline is environmental, so it is left unscaled. */
-  private updateZones(dt: number): void {
-    const idx = Math.floor(this.elapsed / C.SEASON_LENGTH) % C.SEASONS.length;
-    const season = C.SEASON_FOOD_DELTA[idx];
+  /** Applied once each time the colony enters a new season: every zone's food abundance
+   *  steps up (growth seasons, scaled by fertility) or down (winter), bounded by the
+   *  zone's fertility ceiling. Ore abundance is untouched — it only moves on gather runs. */
+  private applySeasonChange(idx: number): void {
+    const step = C.SEASON_FOOD_STEP[idx];
     for (const z of this.zones) {
-      const foodDelta = (season > 0 ? season * z.fertility : season) * dt;
-      z.foodAbundance = clamp(z.foodAbundance + foodDelta, 0, z.fertility);
-      z.resourceAbundance = clamp(z.resourceAbundance + C.RESOURCE_REGEN * z.oreRichness * dt, 0, z.oreRichness);
+      const max = Math.round(z.fertility * C.MAX_ABUNDANCE);
+      const delta = Math.round(step > 0 ? step * z.fertility : step);
+      z.foodAbundance = clamp(z.foodAbundance + delta, 0, max);
     }
   }
 
@@ -264,7 +265,13 @@ export class Colony {
 
     this.processProjects(dt);
     this.processMissions(dt);
-    this.updateZones(dt);
+
+    // Season-change event: fire once when the clock crosses into a new season.
+    const seasonIdx = Math.floor(this.elapsed / C.SEASON_LENGTH) % C.SEASONS.length;
+    if (seasonIdx !== this.seasonIndex) {
+      this.seasonIndex = seasonIdx;
+      this.applySeasonChange(seasonIdx);
+    }
 
     const f = emptyFlows();
     const energyBefore = this.E;
@@ -510,9 +517,9 @@ function makeZone(name: string, kind: string, home = false): Zone {
     home,
     fertility,
     oreRichness,
-    // abundance starts at the zone's geological ceiling, then depletes as it's worked
-    foodAbundance: fertility,
-    resourceAbundance: oreRichness,
+    // abundance is a score starting at the zone's geological ceiling, then depletes as it's worked
+    foodAbundance: Math.round(fertility * C.MAX_ABUNDANCE),
+    resourceAbundance: Math.round(oreRichness * C.MAX_ABUNDANCE),
   };
 }
 

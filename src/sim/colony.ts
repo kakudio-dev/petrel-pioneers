@@ -97,8 +97,9 @@ export class Colony {
     return this.activeSum(C.IRON_STORAGE);
   }
   get foodCap(): number {
-    // larder scales with the crew (5× to start) plus any greenhouse storage
-    return C.CREW_FOOD_STORAGE * this.crewCount + this.activeSum(C.FOOD_STORAGE);
+    // the larder comes from the command module (+ any greenhouse storage); it does not
+    // scale with crew count
+    return this.activeSum(C.FOOD_STORAGE);
   }
   get crewCapacity(): number {
     return this.buildings.reduce((s, b) => (b.state === 'active' ? s + b.capacity : s), 0);

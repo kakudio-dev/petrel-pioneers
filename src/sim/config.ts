@@ -50,16 +50,15 @@ export const FOOD_PRODUCTION: Record<BuildingType, number> = {
 // When the larder is empty and food can't keep up, the colony loses one crew
 // member every STARVE_DELAY seconds (discrete, not a smooth shrink).
 export const STARVE_DELAY = 9;
-// Base larder no longer comes from the command module — food storage scales with the
-// crew (see CREW_FOOD_STORAGE); greenhouses still add a little extra space.
+// The larder is provided by the command module: a fixed 30 (chosen as 5× the 6 starting
+// crew). It does NOT scale with current crew. Greenhouses add a little extra space.
 export const FOOD_STORAGE: Record<BuildingType, number> = {
-  command: 0,
+  command: 30, // the larder
   generator: 0,
   extractor: 0,
   habitat: 0,
   greenhouse: 30, // each greenhouse adds a little larder space
 };
-export const CREW_FOOD_STORAGE = 5; // larder capacity per crew member (5× crew to start)
 export const CREW_FOOD_PER_SEASON = 2; // food each crew eats over one season
 export const FOOD_PER_CREW = CREW_FOOD_PER_SEASON / SEASON_LENGTH; // continuous eat rate (food/s)
 
@@ -168,4 +167,4 @@ export const EXPAND_COST_GROWTH = 1.7; // escalating: the difficulty curve lives
 export const START_E = 200; // start mid-battery
 export const START_IRON = 200;
 export const START_CREW = 6;
-export const START_FOOD = CREW_FOOD_STORAGE * START_CREW; // full larder = 5× starting crew
+export const START_FOOD = FOOD_STORAGE.command; // start with a full larder (30)

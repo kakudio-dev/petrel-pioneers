@@ -52,22 +52,32 @@ export function createMissionsPage(colony: Colony) {
     return `+${GATHER_ORE_AMOUNT} ore`;
   }
 
+  function autoFillTeam() {
+    selected.clear();
+    for (const c of colony.availableCrew) {
+      if (selected.size >= MISSION_CREW) break;
+      selected.add(c.id);
+    }
+  }
+
   function openRow(key: OpenKey, type: MissionType) {
     if (openKey === key) {
       openKey = null; // toggle closed
     } else {
       openKey = key;
       setupType = type;
-      selected.clear();
+      autoFillTeam(); // auto-pull the fixed team
     }
     renderZones();
   }
 
   function setupBodyHTML(type: MissionType): string {
     const dur = Math.ceil(colony.missionDuration(type));
-    const rows = colony.availableCrew.map((c) => crewRowHTML(c, selected.has(c.id), true)).join('');
+    const team = colony.crew.filter((c) => selected.has(c.id));
+    const rows = team.map((c) => crewRowHTML(c, true)).join('');
+    const short = selected.size < MISSION_CREW;
     return `
-      <div class="setup-pick">Assign crew — <b>${selected.size}/${MISSION_CREW}</b></div>
+      <div class="setup-pick">Away team — <b>${selected.size}/${MISSION_CREW}</b>${short ? ' · not enough crew available' : ' · tap a member to swap'}</div>
       <div class="mcrew-list">${rows || '<div class="empty">No crew available.</div>'}</div>
       <div class="setup-foot">
         <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type)}</span>
@@ -78,7 +88,40 @@ export function createMissionsPage(colony: Colony) {
   function renderZones() {
     zoneList.innerHTML = '';
 
-    // Explore row (always first)
+    // Zone rows (all zones, including the home hub, offer gather missions)
+    for (const z of colony.zones) {
+      const isOpen = openKey === z.id;
+      const row = document.createElement('div');
+      row.className = `zrow${z.home ? ' home' : ''}${isOpen ? ' open' : ''}`;
+      const tag = z.home ? '<span class="zone-tag">HUB</span>' : '';
+      let body = '';
+      if (isOpen) {
+        body = `<div class="zrow-body">
+          <div class="setup-types">
+            <button class="mt${setupType === 'gatherFood' ? ' active' : ''}" data-mt="gatherFood">Gather Food</button>
+            <button class="mt${setupType === 'gatherResources' ? ' active' : ''}" data-mt="gatherResources">Gather Resources</button>
+          </div>
+          ${setupBodyHTML(setupType)}</div>`;
+      }
+      row.innerHTML = `
+        <div class="zrow-head clickable">
+          <span class="msym zrow-icon">${z.home ? 'hub' : 'place'}</span>
+          <span class="zrow-name"><b>${z.name}</b> <span class="mission-desc">${z.kind}</span></span>
+          ${tag}<span class="msym zrow-chev">${isOpen ? 'expand_less' : 'expand_more'}</span>
+        </div>${body}`;
+      row.querySelector('.zrow-head')!.addEventListener('click', () => openRow(z.id, setupType));
+      if (isOpen) {
+        row.querySelectorAll('.mt').forEach((b) =>
+          b.addEventListener('click', () => {
+            setupType = (b as HTMLElement).dataset.mt as MissionType;
+            renderZones();
+          }),
+        );
+      }
+      zoneList.appendChild(row);
+    }
+
+    // Explore row (at the bottom)
     const exploreOpen = openKey === 'explore';
     const canExplore = colony.zonesRemaining;
     const erow = document.createElement('div');
@@ -95,44 +138,7 @@ export function createMissionsPage(colony: Colony) {
     }
     zoneList.appendChild(erow);
 
-    // Zone rows
-    for (const z of colony.zones) {
-      const isOpen = openKey === z.id;
-      const row = document.createElement('div');
-      row.className = `zrow${z.home ? ' home' : ''}${isOpen ? ' open' : ''}`;
-      const chev = z.home ? '' : `<span class="msym zrow-chev">${isOpen ? 'expand_less' : 'expand_more'}</span>`;
-      const tag = z.home ? '<span class="zone-tag">HUB</span>' : '';
-      let body = '';
-      if (isOpen) {
-        body = `<div class="zrow-body">
-          <div class="setup-types">
-            <button class="mt${setupType === 'gatherFood' ? ' active' : ''}" data-mt="gatherFood">Gather Food</button>
-            <button class="mt${setupType === 'gatherResources' ? ' active' : ''}" data-mt="gatherResources">Gather Resources</button>
-          </div>
-          ${setupBodyHTML(setupType)}</div>`;
-      }
-      row.innerHTML = `
-        <div class="zrow-head${z.home ? '' : ' clickable'}">
-          <span class="msym zrow-icon">${z.home ? 'hub' : 'place'}</span>
-          <span class="zrow-name"><b>${z.name}</b> <span class="mission-desc">${z.kind}</span></span>
-          ${tag}${chev}
-        </div>${body}`;
-      if (!z.home) {
-        row.querySelector('.zrow-head')!.addEventListener('click', () => openRow(z.id, setupType));
-      }
-      // wire body controls
-      if (isOpen) {
-        row.querySelectorAll('.mt').forEach((b) =>
-          b.addEventListener('click', () => {
-            setupType = (b as HTMLElement).dataset.mt as MissionType;
-            renderZones();
-          }),
-        );
-      }
-      zoneList.appendChild(row);
-    }
-
-    // wire crew toggles + launch for whichever row is open
+    // wire crew swap + launch for whichever row is open
     wireSetup();
   }
 
@@ -143,9 +149,12 @@ export function createMissionsPage(colony: Colony) {
     zoneList.querySelectorAll('.zrow.open .mcrew-row').forEach((r) =>
       r.addEventListener('click', () => {
         const id = Number((r as HTMLElement).dataset.crew);
-        if (selected.has(id)) selected.delete(id);
-        else if (selected.size < MISSION_CREW) selected.add(id);
-        renderZones();
+        const alt = colony.availableCrew.find((c) => !selected.has(c.id));
+        if (alt) {
+          selected.delete(id);
+          selected.add(alt.id);
+          renderZones();
+        }
       }),
     );
     const launch = zoneList.querySelector('.zrow.open .setup-launch') as HTMLButtonElement | null;
@@ -176,7 +185,7 @@ export function createMissionsPage(colony: Colony) {
           const team = m.crewIds
             .map((id) => colony.crew.find((c) => c.id === id))
             .filter(Boolean)
-            .map((c) => crewRowHTML(c as CrewMember, false, false))
+            .map((c) => crewRowHTML(c as CrewMember, false))
             .join('');
           const card = document.createElement('div');
           card.className = 'amission';
@@ -226,9 +235,9 @@ function statsHTML(c: CrewMember): string {
   ).join('');
 }
 
-function crewRowHTML(c: CrewMember, selected: boolean, selectable: boolean): string {
-  const tail = selectable ? `<span class="mcrew-pick">${selected ? '✓ Assigned' : 'Assign'}</span>` : '';
-  return `<div class="mcrew-row${selectable ? ' selectable' : ''}${selected ? ' selected' : ''}" data-crew="${c.id}">
+function crewRowHTML(c: CrewMember, selectable: boolean): string {
+  const tail = selectable ? '<span class="mcrew-pick">Swap</span>' : '';
+  return `<div class="mcrew-row${selectable ? ' selectable' : ''}" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
     <span class="crew-stats">${statsHTML(c)}</span>

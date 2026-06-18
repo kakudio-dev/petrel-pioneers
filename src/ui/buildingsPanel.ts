@@ -160,9 +160,9 @@ function boxesCol(kind: string, iconName: string, count: number): string {
   for (let i = 0; i < count; i++) pips += `<span class="pipbox"><span class="msym pic">${iconName}</span></span>`;
   return `<span class="pips ${kind}">${pips}</span>`;
 }
-// Production: a "+N" chip with the resource icon.
+// Production: a filled box with the resource icon (a source), plus the amount.
 function prodChip(kind: string, iconName: string, n: number): string {
-  return `<span class="prod ${kind}"><span class="msym">${iconName}</span> +${n}</span>`;
+  return `<span class="prod ${kind}"><span class="pipbox filled"><span class="msym pic">${iconName}</span></span> +${n}</span>`;
 }
 
 // The energy column: produces (chip) or consumes (boxes).

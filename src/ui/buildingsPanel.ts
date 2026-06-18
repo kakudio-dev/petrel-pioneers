@@ -237,8 +237,7 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
   // active row meta — just the production output the meters don't already show
   // (power draw → power blocks; crew need → worker blocks).
   const meta = row.el.querySelector('.meta') as HTMLElement;
-  if (b.type === 'command') meta.textContent = 'core · grows no food';
-  else if (b.type === 'extractor') meta.textContent = '+8 ore/s';
+  if (b.type === 'extractor') meta.textContent = '+8 ore/s';
   else if (b.type === 'greenhouse') meta.textContent = '+6 food/s';
   else meta.textContent = '';
 
@@ -259,10 +258,14 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
     box.className = i < crewFilled ? 'pipbox on' : 'pipbox';
   });
 
-  // power-status accent: how far the power reaches (every standing consumer)
-  row.el.classList.toggle('pwr-good', consumes && b.powerLevel >= 0.999);
-  row.el.classList.toggle('pwr-warn', consumes && b.powerLevel > 0.001 && b.powerLevel < 0.999);
-  row.el.classList.toggle('pwr-bad', consumes && b.powerLevel <= 0.001);
+  // power-status accent: green = fully on generation, yellow = fully powered but
+  // drawing battery (temporary), orange = partial, red = unpowered.
+  const onBattery = b.batPower > 0.001;
+  const lvl = b.powerLevel;
+  row.el.classList.toggle('pwr-good', consumes && lvl >= 0.999 && !onBattery);
+  row.el.classList.toggle('pwr-batt', consumes && lvl >= 0.999 && onBattery);
+  row.el.classList.toggle('pwr-warn', consumes && lvl > 0.001 && lvl < 0.999);
+  row.el.classList.toggle('pwr-bad', consumes && lvl <= 0.001);
 
   // reorder arrow availability
   const idx = colony.buildings.findIndex((x) => x.id === b.id);

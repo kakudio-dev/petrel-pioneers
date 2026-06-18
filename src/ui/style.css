@@ -159,8 +159,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .prod.people .pipbox.filled { background: var(--crew); }
 .prod .pipbox.filled .pic { color: var(--bg); font-variation-settings: 'FILL' 1; }
 .brow .bname { min-width: 0; }
-.brow.pwr-good { box-shadow: inset 3px 0 0 var(--pos); }
-.brow.pwr-warn { box-shadow: inset 3px 0 0 var(--warn); }
+.brow.pwr-good { box-shadow: inset 3px 0 0 var(--pos); }    /* on live generation */
+.brow.pwr-batt { box-shadow: inset 3px 0 0 var(--energy); } /* drawing battery (temporary) */
+.brow.pwr-warn { box-shadow: inset 3px 0 0 var(--food); }   /* partially powered */
 .brow.pwr-bad { box-shadow: inset 3px 0 0 var(--neg); }
 
 /* per-row power & worker meters — discrete blocks (one per unit required) */

@@ -1,6 +1,5 @@
 import type { Colony, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
-import { MISSION_CREW } from '../sim/config';
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -43,21 +42,17 @@ export function createMissionsPage(colony: Colony) {
   let zoneSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement }>();
 
-  function rewardText(type: MissionType, zoneId: number | null): string {
+  function rewardText(type: MissionType, zoneId: number | null, crew: number): string {
     if (type === 'explore') return colony.zonesRemaining ? 'Discover a new zone' : 'Region fully explored';
-    if (type === 'gatherFood') return `+${colony.missionYield('gatherFood', zoneId)} food`;
-    return `+${colony.missionYield('gatherResources', zoneId)} ore`;
+    if (type === 'gatherFood') return `+${colony.missionYield('gatherFood', zoneId, crew)} food`;
+    return `+${colony.missionYield('gatherResources', zoneId, crew)} ore`;
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
-  // exclusive when a mission is actually launched.
+  // exclusive when a mission is actually launched. A setup opens with every
+  // available crew member assigned — the player can deselect any of them.
   function autoFill(key: string) {
-    const t = new Set<number>();
-    for (const c of colony.availableCrew) {
-      if (t.size >= MISSION_CREW) break;
-      t.add(c.id);
-    }
-    teams.set(key, t);
+    teams.set(key, new Set(colony.availableCrew.map((c) => c.id)));
   }
 
   function toggleZone(id: number) {
@@ -77,15 +72,15 @@ export function createMissionsPage(colony: Colony) {
 
   function setupHTML(key: string, type: MissionType, zoneId: number | null): string {
     const t = teams.get(key) ?? new Set<number>();
-    const team = colony.crew.filter((c) => t.has(c.id));
-    const rows = team.map((c) => crewRowHTML(c, true)).join('');
-    const short = t.size < MISSION_CREW;
+    // candidates: every crew member not already away on a mission
+    const candidates = colony.crew.filter((c) => !colony.onMission(c.id));
+    const rows = candidates.map((c) => crewRowHTML(c, true, t.has(c.id))).join('');
     const dur = Math.ceil(colony.missionDuration(type));
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
-      <div class="setup-pick">Away team — <b>${t.size}/${MISSION_CREW}</b>${short ? ' · not enough crew available' : ' · tap a member to swap'}</div>
+      <div class="setup-pick">Away team — <b>${t.size}</b> assigned${t.size ? ' · tap to add or remove' : ' · tap a member to assign'}</div>
       <div class="mcrew-list">${rows || '<div class="empty">No crew available.</div>'}</div>
       <div class="setup-foot">
-        <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId)}</span>
+        <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId, t.size)}</span>
         <button class="setup-launch">Launch</button>
       </div>
     </div>`;
@@ -105,7 +100,7 @@ export function createMissionsPage(colony: Colony) {
       <div class="msub-head clickable" data-key="${key}">
         <span class="msym msub-icon">${ICON[type]}</span>
         <span class="msub-name">${LABEL[type]}</span>
-        <span class="avail-reward">${rewardText(type, zoneId)}</span>
+        <span class="avail-reward">${rewardText(type, zoneId, colony.availableCrew.length)}</span>
         <span class="msym zrow-chev">${open ? 'expand_less' : 'expand_more'}</span>
       </div>
       ${open ? `<div class="msub-body">${setupHTML(key, type, zoneId)}</div>` : ''}</div>`;
@@ -171,31 +166,20 @@ export function createMissionsPage(colony: Colony) {
       setupEl.querySelectorAll('.mcrew-row').forEach((r) =>
         r.addEventListener('click', () => {
           const id = Number((r as HTMLElement).dataset.crew);
-          const alt = colony.availableCrew.find((c) => !team.has(c.id));
-          if (alt) {
-            team.delete(id);
-            team.add(alt.id);
-            renderZones();
-          }
+          if (team.has(id)) team.delete(id);
+          else team.add(id);
+          renderZones();
         }),
       );
       const launch = setupEl.querySelector('.setup-launch') as HTMLButtonElement;
-      launch.disabled = team.size !== MISSION_CREW;
+      launch.disabled = team.size < 1;
       launch.addEventListener('click', () => {
         const committed = [...team];
+        if (committed.length === 0) return;
         colony.launchMission(type, zoneId, committed);
         teams.delete(key);
-        // committed crew are now busy — drop them from other pending teams and backfill
-        for (const [, t] of teams) {
-          let changed = false;
-          for (const id of committed) if (t.delete(id)) changed = true;
-          if (changed) {
-            for (const c of colony.availableCrew) {
-              if (t.size >= MISSION_CREW) break;
-              if (!t.has(c.id)) t.add(c.id);
-            }
-          }
-        }
+        // committed crew are now busy — drop them from any other pending teams
+        for (const [, t] of teams) for (const id of committed) t.delete(id);
         renderZones();
       });
     });
@@ -273,9 +257,12 @@ function statsHTML(c: CrewMember): string {
   ).join('');
 }
 
-function crewRowHTML(c: CrewMember, selectable: boolean): string {
-  const tail = selectable ? '<span class="mcrew-pick">Swap</span>' : '';
-  return `<div class="mcrew-row${selectable ? ' selectable' : ''}" data-crew="${c.id}">
+function crewRowHTML(c: CrewMember, selectable: boolean, selected = false): string {
+  const tail = selectable
+    ? `<span class="msym mcrew-check">${selected ? 'check_circle' : 'radio_button_unchecked'}</span>`
+    : '';
+  const cls = `mcrew-row${selectable ? ' selectable' : ''}${selected ? ' on' : ''}`;
+  return `<div class="${cls}" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
     <span class="crew-stats">${statsHTML(c)}</span>

@@ -164,9 +164,9 @@ body {
 }
 .mcrew-row.selectable { cursor: pointer; }
 .mcrew-row.selectable:hover { border-color: var(--accent); }
-.mcrew-row.selected { border-color: var(--accent); background: #16242f; }
-.mcrew-pick { font-size: 11px; color: var(--ink-dim); }
-.mcrew-row.selected .mcrew-pick { color: var(--accent); }
+.mcrew-row.on { border-color: var(--accent); background: #16242f; }
+.mcrew-check { font-size: 20px; color: var(--ink-dim); }
+.mcrew-row.on .mcrew-check { color: var(--accent); }
 
 /* setup (inside an expanded zone row) */
 .setup-types { display: flex; align-items: center; gap: 8px; }

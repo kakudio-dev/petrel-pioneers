@@ -86,7 +86,8 @@ export class Colony {
     return this.activeSum(C.IRON_STORAGE);
   }
   get foodCap(): number {
-    return this.activeSum(C.FOOD_STORAGE);
+    // larder scales with the crew (5× to start) plus any greenhouse storage
+    return C.CREW_FOOD_STORAGE * this.crewCount + this.activeSum(C.FOOD_STORAGE);
   }
   get crewCapacity(): number {
     return this.buildings.reduce((s, b) => (b.state === 'active' ? s + b.capacity : s), 0);
@@ -135,13 +136,21 @@ export class Colony {
   missionDuration(type: MissionType): number {
     return type === 'explore' ? C.EXPLORE_DURATION : C.GATHER_DURATION;
   }
-  /** Expected yield of a gather mission, scaled by the target zone's abundance score. */
-  missionYield(type: MissionType, zoneId: number | null): number {
+  /** Total abundance each crew finds on a run: CREW_FIND_RATE of the zone's current
+   *  abundance, per crew. This same amount is what's subtracted from the abundance. */
+  private foundBy(crew: number, abundance: number): number {
+    return crew * C.CREW_FIND_RATE * abundance;
+  }
+  /** Resources actually carried home by a gather run (what lands in the stockpile). Food
+   *  is capped at CREW_CARRY_FOOD per crew; ore has no carry limit. */
+  missionYield(type: MissionType, zoneId: number | null, crew: number): number {
     const zone = this.zones.find((z) => z.id === zoneId);
-    const score = type === 'gatherResources' ? zone?.resourceAbundance : zone?.foodAbundance;
-    const amount = type === 'gatherResources' ? C.GATHER_ORE_AMOUNT : C.GATHER_FOOD_AMOUNT;
-    if (type === 'explore') return 0;
-    return Math.round(((score ?? C.MAX_ABUNDANCE) / C.MAX_ABUNDANCE) * amount);
+    if (!zone || type === 'explore' || crew <= 0) return 0;
+    if (type === 'gatherFood') {
+      const perCrew = Math.min(C.CREW_FIND_RATE * zone.foodAbundance, C.CREW_CARRY_FOOD);
+      return Math.round(crew * perCrew);
+    }
+    return Math.round(this.foundBy(crew, zone.resourceAbundance));
   }
   /** Launch a mission with a fixed team (crew ids) targeting an optional zone. */
   launchMission(type: MissionType, zoneId: number | null, crewIds: number[]): boolean {
@@ -188,14 +197,21 @@ export class Colony {
       m.elapsed += dt;
       if (m.elapsed >= m.duration) {
         const zone = this.zones.find((z) => z.id === m.zoneId);
+        const crew = m.crewIds.length;
         if (m.type === 'explore') {
           this.discoverZone();
         } else if (m.type === 'gatherFood') {
-          this.food = Math.min(this.foodCap, this.food + this.missionYield('gatherFood', m.zoneId));
-          if (zone) zone.foodAbundance = Math.max(0, zone.foodAbundance - C.GATHER_DEPLETION);
+          this.food = Math.min(this.foodCap, this.food + this.missionYield('gatherFood', m.zoneId, crew));
+          if (zone) {
+            const found = this.foundBy(crew, zone.foodAbundance);
+            zone.foodAbundance = Math.max(0, Math.round(zone.foodAbundance - found));
+          }
         } else {
-          this.iron = Math.min(this.ironCap, this.iron + this.missionYield('gatherResources', m.zoneId));
-          if (zone) zone.resourceAbundance = Math.max(0, zone.resourceAbundance - C.GATHER_DEPLETION);
+          this.iron = Math.min(this.ironCap, this.iron + this.missionYield('gatherResources', m.zoneId, crew));
+          if (zone) {
+            const found = this.foundBy(crew, zone.resourceAbundance);
+            zone.resourceAbundance = Math.max(0, Math.round(zone.resourceAbundance - found));
+          }
         }
         done.push(m.id);
       }

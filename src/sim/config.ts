@@ -50,14 +50,18 @@ export const FOOD_PRODUCTION: Record<BuildingType, number> = {
 // When the larder is empty and food can't keep up, the colony loses one crew
 // member every STARVE_DELAY seconds (discrete, not a smooth shrink).
 export const STARVE_DELAY = 9;
+// Base larder no longer comes from the command module — food storage scales with the
+// crew (see CREW_FOOD_STORAGE); greenhouses still add a little extra space.
 export const FOOD_STORAGE: Record<BuildingType, number> = {
-  command: 200, // the larder
+  command: 0,
   generator: 0,
   extractor: 0,
   habitat: 0,
   greenhouse: 30, // each greenhouse adds a little larder space
 };
-export const FOOD_PER_CREW = 0.3; // food/s eaten per crew
+export const CREW_FOOD_STORAGE = 5; // larder capacity per crew member (5× crew to start)
+export const CREW_FOOD_PER_SEASON = 2; // food each crew eats over one season
+export const FOOD_PER_CREW = CREW_FOOD_PER_SEASON / SEASON_LENGTH; // continuous eat rate (food/s)
 
 // --- Iron stockpile: storage per building type. When full, extractor output is
 //     wasted — a nudge to spend iron on building or expanding. ---
@@ -104,15 +108,16 @@ export const CREW_REQ: Record<BuildingType, number> = {
 };
 
 // --- Missions (zone-targeted expeditions: pick a team, launch, resolve on finish) ---
-export const MISSION_CREW = 3; // fixed crew every mission requires
+// A gather run can take any number of crew. On completion each crew finds CREW_FIND_RATE
+// of the zone's current abundance; that same total is subtracted from the abundance. For
+// food, each crew can carry at most CREW_CARRY_FOOD home (the rest of the find is lost).
+export const CREW_FIND_RATE = 0.05; // share of current abundance each crew finds per run
+export const CREW_CARRY_FOOD = 5; // max food a single crew can carry back from a run
 export const EXPLORE_DURATION = 22; // seconds to discover a new zone
 export const GATHER_DURATION = 26; // seconds for a gather run
-export const GATHER_FOOD_AMOUNT = 80; // food returned by a Gather Food run at full (1.0) abundance
-export const GATHER_ORE_AMOUNT = 100; // ore returned by a Gather Resources run at full abundance
-// Abundance is a 0..MAX_ABUNDANCE score (capped per zone by its geology). It only
-// changes on discrete events — never continuously over time.
+// Abundance is a 0..MAX_ABUNDANCE score. It only changes on discrete events — never
+// continuously over time.
 export const MAX_ABUNDANCE = 100;
-export const GATHER_DEPLETION = 25; // abundance points a zone loses per gather run
 // Food abundance change applied once each time the colony ENTERS a season (index matches
 // SEASONS: Thaw, Highsun, Wane, Dark). Growth ADDS a fraction of the zone's fertility
 // score; decay REMOVES a fraction of current abundance. There is no upper cap — the
@@ -161,5 +166,5 @@ export const EXPAND_COST_GROWTH = 1.7; // escalating: the difficulty curve lives
 // with, but no food production. Get a greenhouse running before the larder empties.
 export const START_E = 200; // start mid-battery
 export const START_IRON = 200;
-export const START_FOOD = 200; // full larder — the survival countdown starts here
 export const START_CREW = 6;
+export const START_FOOD = CREW_FOOD_STORAGE * START_CREW; // full larder = 5× starting crew

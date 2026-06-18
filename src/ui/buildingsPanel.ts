@@ -227,14 +227,13 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
     return;
   }
 
-  // active row meta + meters + priority coloring
-  const req = CREW_REQ[b.type];
+  // active row meta — just the production output the meters don't already show
+  // (power draw → power blocks; crew need → worker blocks).
   const meta = row.el.querySelector('.meta') as HTMLElement;
-  if (b.type === 'command') meta.textContent = 'core · always on · grows no food';
-  else if (b.type === 'generator') meta.textContent = `+10 E/s · needs ${req} crew`;
-  else if (b.type === 'extractor') meta.textContent = `+8 ore/s · −4 E/s · needs ${req} crew`;
-  else if (b.type === 'greenhouse') meta.textContent = `+6 food/s · −5 E/s · needs ${req} crew`;
-  else meta.textContent = '−2 E/s housing';
+  if (b.type === 'command') meta.textContent = 'core · grows no food';
+  else if (b.type === 'extractor') meta.textContent = '+8 ore/s';
+  else if (b.type === 'greenhouse') meta.textContent = '+6 food/s';
+  else meta.textContent = '';
 
   // A standing consumer draws its full power regardless of staffing. Each filled
   // block is sourced from live generation (solid) or the battery (hollow) so a

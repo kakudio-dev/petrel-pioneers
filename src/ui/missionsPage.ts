@@ -93,8 +93,8 @@ export function createMissionsPage(colony: Colony) {
 
   function geoHTML(z: { fertility: number; oreRichness: number }): string {
     return `<div class="zgeo">
-      <span class="zgeo-item"><span class="msym">eco</span> Fertility <b>${Math.round(z.fertility * 100)}%</b></span>
-      <span class="zgeo-item"><span class="msym">diamond</span> Ore richness <b>${Math.round(z.oreRichness * 100)}%</b></span>
+      <span class="zgeo-item"><span class="msym">eco</span> Fertility <b>${Math.round(z.fertility * 100)}</b></span>
+      <span class="zgeo-item"><span class="msym">diamond</span> Ore richness <b>${Math.round(z.oreRichness * 100)}</b></span>
     </div>`;
   }
 

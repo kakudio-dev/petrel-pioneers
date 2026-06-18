@@ -65,7 +65,7 @@ export const FOOD_PER_CREW = CREW_FOOD_PER_SEASON / SEASON_LENGTH; // continuous
 // --- Iron stockpile: storage per building type. When full, extractor output is
 //     wasted — a nudge to spend iron on building or expanding. ---
 export const IRON_STORAGE: Record<BuildingType, number> = {
-  command: 400, // base stockpile
+  command: 50, // base stockpile
   generator: 0,
   extractor: 60, // ore piles up at the extractor
   habitat: 0,

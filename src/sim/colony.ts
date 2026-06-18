@@ -164,20 +164,22 @@ export class Colony {
     if (type === 'gatherFood') return this.carriedFood(crew, zone.foodAbundance);
     return Math.round(this.foundBy(crew, zone.resourceAbundance));
   }
-  /** Pre-launch preview of a run's yield. Unlike missionYield this projects food abundance
-   *  forward to when the run RETURNS — applying any season change(s) crossed during the
-   *  run — so the predicted food matches what actually comes back. Ore ignores seasons. */
-  missionForecast(type: MissionType, zoneId: number | null, crew: number): number {
+  /** Forecast of a run's yield. Unlike missionYield this projects food abundance forward
+   *  to when the run RETURNS — applying any season change(s) it will cross — so the
+   *  predicted food matches what actually comes back. `lookahead` is the time until return
+   *  (full duration for a pre-launch preview; remaining time for an in-flight mission).
+   *  Ore ignores seasons. */
+  missionForecast(type: MissionType, zoneId: number | null, crew: number, lookahead = C.GATHER_DURATION): number {
     const zone = this.zones.find((z) => z.id === zoneId);
     if (!zone || type === 'explore' || crew <= 0) return 0;
-    if (type === 'gatherFood') return this.carriedFood(crew, this.projectedFoodAbundance(zone));
+    if (type === 'gatherFood') return this.carriedFood(crew, this.projectedFoodAbundance(zone, lookahead));
     return Math.round(this.foundBy(crew, zone.resourceAbundance));
   }
-  /** A zone's food abundance projected to mission-return time (now + GATHER_DURATION),
-   *  applying each season change the run will cross. */
-  private projectedFoodAbundance(zone: Zone): number {
+  /** A zone's food abundance projected `lookahead` seconds ahead, applying each season
+   *  change crossed in that window. */
+  private projectedFoodAbundance(zone: Zone, lookahead: number): number {
     const fromSeason = Math.floor(this.elapsed / C.SEASON_LENGTH);
-    const toSeason = Math.floor((this.elapsed + C.GATHER_DURATION) / C.SEASON_LENGTH);
+    const toSeason = Math.floor((this.elapsed + lookahead) / C.SEASON_LENGTH);
     let food = zone.foodAbundance;
     const fertScore = zone.fertility * C.MAX_ABUNDANCE;
     for (let s = fromSeason + 1; s <= toSeason; s++) {

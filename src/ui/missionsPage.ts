@@ -46,7 +46,7 @@ export function createMissionsPage(colony: Colony) {
   let activeSig = '';
   let zoneSig = '';
   let recentSig = '';
-  const fills = new Map<number, { fill: HTMLElement; left: HTMLElement }>();
+  const fills = new Map<number, { fill: HTMLElement; left: HTMLElement; yield: HTMLElement }>();
 
   function rewardText(type: MissionType, zoneId: number | null, crew: number): string {
     if (type === 'explore') return colony.zonesRemaining ? 'Discover a new zone' : 'Region fully explored';
@@ -245,6 +245,7 @@ export function createMissionsPage(colony: Colony) {
             <div class="amission-head">
               <span class="msym mission-icon">${ICON[m.type]}</span>
               <span class="amission-name"><b>${LABEL[m.type]}</b> <span class="mission-desc">${zone ? zone.name : 'Uncharted region'}</span></span>
+              <span class="m-yield"></span>
               <span class="m-prog"><span class="m-fill"></span></span>
               <span class="m-left"></span>
               <button class="m-recall">Recall</button>
@@ -255,6 +256,7 @@ export function createMissionsPage(colony: Colony) {
           fills.set(m.id, {
             fill: card.querySelector('.m-fill') as HTMLElement,
             left: card.querySelector('.m-left') as HTMLElement,
+            yield: card.querySelector('.m-yield') as HTMLElement,
           });
         }
       }
@@ -264,6 +266,12 @@ export function createMissionsPage(colony: Colony) {
       if (r) {
         r.fill.style.width = `${Math.min(100, (m.elapsed / m.duration) * 100)}%`;
         r.left.textContent = `${Math.ceil(m.duration - m.elapsed)}s`;
+        const remaining = m.duration - m.elapsed;
+        const crew = m.crewIds.length;
+        if (m.type === 'gatherFood')
+          r.yield.textContent = `+${colony.missionForecast('gatherFood', m.zoneId, crew, remaining)} food`;
+        else if (m.type === 'gatherResources')
+          r.yield.textContent = `+${colony.missionForecast('gatherResources', m.zoneId, crew, remaining)} ore`;
       }
     }
 

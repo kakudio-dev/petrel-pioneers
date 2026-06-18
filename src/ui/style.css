@@ -152,6 +152,7 @@ body {
 .amission { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; }
 .amission-head { display: flex; align-items: center; gap: 12px; }
 .amission-name { flex: 1; min-width: 0; font-size: 13px; }
+.amission .m-yield { font-size: 12px; color: var(--accent); white-space: nowrap; }
 .amission .m-prog { width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .amission .m-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .amission .m-left { font-size: 12px; color: var(--ink-dim); white-space: nowrap; min-width: 28px; }

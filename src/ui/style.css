@@ -187,7 +187,9 @@ body {
 }
 .recent-icon { font-size: 20px; color: var(--accent); }
 .recent-main { flex: 1; min-width: 0; font-size: 13px; }
-.recent-result { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.recent-result { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; white-space: nowrap; }
+.recent-got { font-size: 12px; color: var(--ink); }
+.recent-again { font-size: 11px; color: var(--ink-dim); }
 .recent-rerun {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 6px;

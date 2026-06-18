@@ -47,6 +47,8 @@ export function createMissionsPage(colony: Colony) {
   const recentList = el.querySelector('.recent-list') as HTMLElement;
 
   const openZones = new Set<number>(); // expanded zone ids (multiple allowed)
+  const home = colony.zones.find((z) => z.home); // expand the home zone (The Roost) by default
+  if (home) openZones.add(home.id);
   const teams = new Map<string, Set<number>>(); // open mission setup -> staged crew
   let activeSig = '';
   let zoneSig = '';
@@ -302,6 +304,7 @@ export function createMissionsPage(colony: Colony) {
       recentSig = rsig;
       renderRecent();
     }
+    updateRerunForecasts(); // keep re-run forecasts fresh as seasons/abundance drift
   }
 
   function renderRecent() {
@@ -317,6 +320,25 @@ export function createMissionsPage(colony: Colony) {
         if (m) rerun(m);
       }),
     );
+    updateRerunForecasts();
+  }
+
+  // Live: what each logged gather mission would collect if re-run now (season-aware,
+  // using the crew the re-run would actually take).
+  function updateRerunForecasts() {
+    const avail = colony.availableCrew.length;
+    for (const m of colony.completedMissions) {
+      if (m.type === 'explore') continue;
+      const span = recentList.querySelector(`[data-again="${m.id}"]`);
+      if (!span) continue;
+      if (avail === 0) {
+        span.textContent = 'repeat —';
+        continue;
+      }
+      const crew = Math.min(avail, m.crew);
+      const unit = m.type === 'gatherFood' ? 'food' : 'ore';
+      span.textContent = `repeat +${colony.missionForecast(m.type, m.zoneId, crew)} ${unit}`;
+    }
   }
 
   return { el, update };
@@ -331,18 +353,20 @@ function statsHTML(c: CrewMember): string {
 
 function recentRowHTML(m: CompletedMission, idx: number, rerunnable: boolean): string {
   let sub: string;
-  let result: string;
+  let got: string;
+  // `recent-again` is filled live with the season-aware forecast for re-running now
+  const again = m.type === 'explore' ? '' : `<span class="recent-again" data-again="${m.id}"></span>`;
   if (m.type === 'explore') {
     sub = `${m.crew} crew`;
-    result = m.zoneName ? `Discovered ${m.zoneName}` : 'Region explored';
+    got = m.zoneName ? `Discovered ${m.zoneName}` : 'Region explored';
   } else {
     sub = `${m.zoneName} · ${m.crew} crew`;
-    result = m.type === 'gatherFood' ? `+${m.amount} food` : `+${m.amount} ore`;
+    got = m.type === 'gatherFood' ? `+${m.amount} food` : `+${m.amount} ore`;
   }
   return `<div class="recent-row">
     <span class="msym recent-icon">${ICON[m.type]}</span>
     <span class="recent-main"><b>${LABEL[m.type]}</b> <span class="mission-desc">${sub}</span></span>
-    <span class="recent-result">${result}</span>
+    <span class="recent-result"><span class="recent-got">${got}</span>${again}</span>
     <button class="recent-rerun" data-idx="${idx}"${rerunnable ? '' : ' disabled'} title="Run again"><span class="msym">replay</span></button>
   </div>`;
 }

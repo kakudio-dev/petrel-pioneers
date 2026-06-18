@@ -49,10 +49,13 @@ export function createMissionsPage(colony: Colony) {
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
-  // exclusive when a mission is actually launched. A setup opens with every
-  // available crew member assigned — the player can deselect any of them.
+  // exclusive when a mission is actually launched. A setup opens with a single
+  // crew member assigned — the player adds or removes more with the stepper.
   function autoFill(key: string) {
-    teams.set(key, new Set(colony.availableCrew.map((c) => c.id)));
+    const t = new Set<number>();
+    const first = colony.availableCrew[0];
+    if (first) t.add(first.id);
+    teams.set(key, t);
   }
 
   function toggleZone(id: number) {
@@ -72,13 +75,20 @@ export function createMissionsPage(colony: Colony) {
 
   function setupHTML(key: string, type: MissionType, zoneId: number | null): string {
     const t = teams.get(key) ?? new Set<number>();
-    // candidates: every crew member not already away on a mission
-    const candidates = colony.crew.filter((c) => !colony.onMission(c.id));
-    const rows = candidates.map((c) => crewRowHTML(c, true, t.has(c.id))).join('');
+    const team = colony.crew.filter((c) => t.has(c.id));
+    // candidates: every crew member not already away on a mission (sets the upper bound)
+    const available = colony.crew.filter((c) => !colony.onMission(c.id)).length;
+    const avatars = team.map((c) => `<span class="team-av" title="${c.name}">${c.name[0]}</span>`).join('');
     const dur = Math.ceil(colony.missionDuration(type));
+    const atMin = t.size <= 1;
+    const atMax = t.size >= available || available === 0;
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
-      <div class="setup-pick">Away team — <b>${t.size}</b> assigned${t.size ? ' · tap to add or remove' : ' · tap a member to assign'}</div>
-      <div class="mcrew-list">${rows || '<div class="empty">No crew available.</div>'}</div>
+      <div class="setup-team">
+        <button class="crew-step" data-step="-1"${atMin ? ' disabled' : ''}><span class="msym">remove</span></button>
+        <span class="setup-count"><b>${t.size}</b> crew</span>
+        <button class="crew-step" data-step="1"${atMax ? ' disabled' : ''}><span class="msym">add</span></button>
+        <span class="team-avatars">${avatars}</span>
+      </div>
       <div class="setup-foot">
         <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId, t.size)}</span>
         <button class="setup-launch">Launch</button>
@@ -100,7 +110,7 @@ export function createMissionsPage(colony: Colony) {
       <div class="msub-head clickable" data-key="${key}">
         <span class="msym msub-icon">${ICON[type]}</span>
         <span class="msub-name">${LABEL[type]}</span>
-        <span class="avail-reward">${rewardText(type, zoneId, colony.availableCrew.length)}</span>
+        <span class="avail-reward">${rewardText(type, zoneId, 1)}</span>
         <span class="msym zrow-chev">${open ? 'expand_less' : 'expand_more'}</span>
       </div>
       ${open ? `<div class="msub-body">${setupHTML(key, type, zoneId)}</div>` : ''}</div>`;
@@ -163,11 +173,16 @@ export function createMissionsPage(colony: Colony) {
       const team = teams.get(key);
       if (!team) return;
 
-      setupEl.querySelectorAll('.mcrew-row').forEach((r) =>
-        r.addEventListener('click', () => {
-          const id = Number((r as HTMLElement).dataset.crew);
-          if (team.has(id)) team.delete(id);
-          else team.add(id);
+      setupEl.querySelectorAll('.crew-step').forEach((btn) =>
+        btn.addEventListener('click', () => {
+          const step = Number((btn as HTMLElement).dataset.step);
+          if (step > 0) {
+            const add = colony.availableCrew.find((c) => !team.has(c.id));
+            if (add) team.add(add.id);
+          } else if (team.size > 1) {
+            const last = [...team].pop();
+            if (last !== undefined) team.delete(last);
+          }
           renderZones();
         }),
       );
@@ -201,7 +216,7 @@ export function createMissionsPage(colony: Colony) {
           const team = m.crewIds
             .map((id) => colony.crew.find((c) => c.id === id))
             .filter(Boolean)
-            .map((c) => crewRowHTML(c as CrewMember, false))
+            .map((c) => crewRowHTML(c as CrewMember))
             .join('');
           const card = document.createElement('div');
           card.className = 'amission';
@@ -257,14 +272,9 @@ function statsHTML(c: CrewMember): string {
   ).join('');
 }
 
-function crewRowHTML(c: CrewMember, selectable: boolean, selected = false): string {
-  const tail = selectable
-    ? `<span class="msym mcrew-check">${selected ? 'check_circle' : 'radio_button_unchecked'}</span>`
-    : '';
-  const cls = `mcrew-row${selectable ? ' selectable' : ''}${selected ? ' on' : ''}`;
-  return `<div class="${cls}" data-crew="${c.id}">
+function crewRowHTML(c: CrewMember): string {
+  return `<div class="mcrew-row" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
-    <span class="crew-stats">${statsHTML(c)}</span>
-    ${tail}</div>`;
+    <span class="crew-stats">${statsHTML(c)}</span></div>`;
 }

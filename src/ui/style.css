@@ -162,11 +162,24 @@ body {
   display: grid; grid-template-columns: 26px minmax(60px, 1fr) auto auto; gap: 12px; align-items: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12px;
 }
-.mcrew-row.selectable { cursor: pointer; }
-.mcrew-row.selectable:hover { border-color: var(--accent); }
-.mcrew-row.on { border-color: var(--accent); background: #16242f; }
-.mcrew-check { font-size: 20px; color: var(--ink-dim); }
-.mcrew-row.on .mcrew-check { color: var(--accent); }
+/* away-team stepper */
+.setup-team { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.crew-step {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink); cursor: pointer;
+}
+.crew-step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.crew-step:disabled { opacity: 0.35; cursor: default; }
+.crew-step .msym { font-size: 18px; }
+.setup-count { font-size: 13px; color: var(--ink-dim); min-width: 54px; text-align: center; }
+.setup-count b { color: var(--ink); font-size: 15px; }
+.team-avatars { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 2px; }
+.team-av {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%; font-size: 11px; font-weight: 600;
+  background: #16242f; border: 1px solid var(--accent); color: var(--accent);
+}
 
 /* setup (inside an expanded zone row) */
 .setup-types { display: flex; align-items: center; gap: 8px; }

@@ -11,6 +11,11 @@ const ICON: Record<MissionType, string> = {
   gatherFood: 'grass',
   gatherResources: 'terrain',
 };
+const DESC: Record<MissionType, string> = {
+  explore: 'Chart a new zone',
+  gatherFood: 'Forage this zone for food',
+  gatherResources: 'Mine this zone for ore',
+};
 const GATHER_TYPES: MissionType[] = ['gatherFood', 'gatherResources'];
 const STATS: { key: keyof CrewMember['stats']; label: string }[] = [
   { key: 'vigor', label: 'VIG' },
@@ -133,8 +138,7 @@ export function createMissionsPage(colony: Colony) {
     return `<div class="msub${open ? ' open' : ''}">
       <div class="msub-head clickable" data-key="${key}">
         <span class="msym msub-icon">${ICON[type]}</span>
-        <span class="msub-name">${LABEL[type]}</span>
-        <span class="avail-reward">${rewardText(type, zoneId, 1)}</span>
+        <span class="msub-name"><b>${LABEL[type]}</b> <span class="mission-desc">${DESC[type]}</span></span>
         <span class="msym zrow-chev">${open ? 'expand_less' : 'expand_more'}</span>
       </div>
       ${open ? `<div class="msub-body">${setupHTML(key, type, zoneId)}</div>` : ''}</div>`;

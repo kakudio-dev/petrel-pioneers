@@ -76,19 +76,15 @@ export function createMissionsPage(colony: Colony) {
   function setupHTML(key: string, type: MissionType, zoneId: number | null): string {
     const t = teams.get(key) ?? new Set<number>();
     const team = colony.crew.filter((c) => t.has(c.id));
-    // candidates: every crew member not already away on a mission (sets the upper bound)
-    const available = colony.crew.filter((c) => !colony.onMission(c.id)).length;
-    const avatars = team.map((c) => `<span class="team-av" title="${c.name}">${c.name[0]}</span>`).join('');
+    const rows = team.map((c) => crewRowHTML(c, true)).join('');
+    // can add another if any crew is neither away on a mission nor already on this team
+    const canAdd = colony.crew.some((c) => !colony.onMission(c.id) && !t.has(c.id));
+    const addRow = canAdd
+      ? '<button class="crew-add"><span class="msym">person_add</span> Add crew</button>'
+      : '';
     const dur = Math.ceil(colony.missionDuration(type));
-    const atMin = t.size <= 1;
-    const atMax = t.size >= available || available === 0;
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
-      <div class="setup-team">
-        <button class="crew-step" data-step="-1"${atMin ? ' disabled' : ''}><span class="msym">remove</span></button>
-        <span class="setup-count"><b>${t.size}</b> crew</span>
-        <button class="crew-step" data-step="1"${atMax ? ' disabled' : ''}><span class="msym">add</span></button>
-        <span class="team-avatars">${avatars}</span>
-      </div>
+      <div class="mcrew-list">${rows}${addRow || (rows ? '' : '<div class="empty">No crew available.</div>')}</div>
       <div class="setup-foot">
         <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId, t.size)}</span>
         <button class="setup-launch">Launch</button>
@@ -173,19 +169,19 @@ export function createMissionsPage(colony: Colony) {
       const team = teams.get(key);
       if (!team) return;
 
-      setupEl.querySelectorAll('.crew-step').forEach((btn) =>
+      setupEl.querySelectorAll('.crew-remove').forEach((btn) =>
         btn.addEventListener('click', () => {
-          const step = Number((btn as HTMLElement).dataset.step);
-          if (step > 0) {
-            const add = colony.availableCrew.find((c) => !team.has(c.id));
-            if (add) team.add(add.id);
-          } else if (team.size > 1) {
-            const last = [...team].pop();
-            if (last !== undefined) team.delete(last);
-          }
+          team.delete(Number((btn as HTMLElement).dataset.crew));
           renderZones();
         }),
       );
+      const addBtn = setupEl.querySelector('.crew-add');
+      if (addBtn)
+        addBtn.addEventListener('click', () => {
+          const add = colony.availableCrew.find((c) => !team.has(c.id));
+          if (add) team.add(add.id);
+          renderZones();
+        });
       const launch = setupEl.querySelector('.setup-launch') as HTMLButtonElement;
       launch.disabled = team.size < 1;
       launch.addEventListener('click', () => {
@@ -272,9 +268,13 @@ function statsHTML(c: CrewMember): string {
   ).join('');
 }
 
-function crewRowHTML(c: CrewMember): string {
+function crewRowHTML(c: CrewMember, removable = false): string {
+  const tail = removable
+    ? `<button class="crew-remove" data-crew="${c.id}" title="Remove"><span class="msym">close</span></button>`
+    : '';
   return `<div class="mcrew-row" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
-    <span class="crew-stats">${statsHTML(c)}</span></div>`;
+    <span class="crew-stats">${statsHTML(c)}</span>
+    ${tail}</div>`;
 }

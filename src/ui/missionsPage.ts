@@ -12,18 +12,14 @@ const ICON: Record<MissionType, string> = {
   gatherFood: 'grass',
   gatherResources: 'terrain',
 };
+const GATHER_TYPES: MissionType[] = ['gatherFood', 'gatherResources'];
 const STATS: { key: keyof CrewMember['stats']; label: string }[] = [
   { key: 'vigor', label: 'VIG' },
   { key: 'tech', label: 'TEC' },
   { key: 'grit', label: 'GRT' },
 ];
 
-interface Entry {
-  key: string;
-  type: MissionType;
-  zoneId: number | null;
-  sub: string; // zone name, or explore tagline
-}
+type ZoneKey = number | 'explore' | null;
 
 export function createMissionsPage(colony: Colony) {
   const el = document.createElement('div');
@@ -34,26 +30,19 @@ export function createMissionsPage(colony: Colony) {
       <div class="active-list"></div>
     </div>
     <div class="panel">
-      <h2>Available Missions</h2>
-      <div class="avail-list"></div>
-    </div>
-    <div class="panel">
       <h2>Zones <span class="zone-count"></span></h2>
-      <div class="zone-ref"></div>
+      <div class="zone-list"></div>
     </div>`;
 
   const activeCount = el.querySelector('.active-count') as HTMLElement;
   const activeList = el.querySelector('.active-list') as HTMLElement;
-  const availList = el.querySelector('.avail-list') as HTMLElement;
   const zoneCount = el.querySelector('.zone-count') as HTMLElement;
-  const zoneRef = el.querySelector('.zone-ref') as HTMLElement;
+  const zoneList = el.querySelector('.zone-list') as HTMLElement;
 
-  let openKey: string | null = null;
-  let openType: MissionType = 'explore';
-  let openZoneId: number | null = null;
+  let openZone: ZoneKey = null; // expanded zone (or 'explore')
+  let openMission: MissionType | null = null; // expanded mission within the open zone
   const selected = new Set<number>();
   let activeSig = '';
-  let availSig = '';
   let zoneSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement }>();
 
@@ -61,16 +50,6 @@ export function createMissionsPage(colony: Colony) {
     if (type === 'explore') return colony.zonesRemaining ? 'Discover a new zone' : 'Region fully explored';
     if (type === 'gatherFood') return `+${GATHER_FOOD_AMOUNT} food`;
     return `+${GATHER_ORE_AMOUNT} ore`;
-  }
-
-  function entries(): Entry[] {
-    const list: Entry[] = [];
-    for (const z of colony.zones) {
-      list.push({ key: `gf:${z.id}`, type: 'gatherFood', zoneId: z.id, sub: z.name });
-      list.push({ key: `gr:${z.id}`, type: 'gatherResources', zoneId: z.id, sub: z.name });
-    }
-    if (colony.zonesRemaining) list.push({ key: 'explore', type: 'explore', zoneId: null, sub: 'Chart a new zone' });
-    return list;
   }
 
   function autoFillTeam() {
@@ -81,16 +60,24 @@ export function createMissionsPage(colony: Colony) {
     }
   }
 
-  function openMission(e: Entry) {
-    if (openKey === e.key) {
-      openKey = null;
+  function toggleZone(key: ZoneKey, explore = false) {
+    if (openZone === key) {
+      openZone = null;
+      openMission = null;
     } else {
-      openKey = e.key;
-      openType = e.type;
-      openZoneId = e.zoneId;
+      openZone = key;
+      openMission = explore ? 'explore' : null;
+      if (explore) autoFillTeam();
+    }
+    renderZones();
+  }
+  function toggleMission(type: MissionType) {
+    if (openMission === type) openMission = null;
+    else {
+      openMission = type;
       autoFillTeam();
     }
-    renderAvailable();
+    renderZones();
   }
 
   function setupBodyHTML(type: MissionType): string {
@@ -107,53 +94,92 @@ export function createMissionsPage(colony: Colony) {
       </div>`;
   }
 
-  function renderAvailable() {
-    availList.innerHTML = '';
-    for (const e of entries()) {
-      const isOpen = openKey === e.key;
+  function missionSubHTML(type: MissionType): string {
+    const open = openMission === type;
+    return `<div class="msub${open ? ' open' : ''}" data-mt="${type}">
+      <div class="msub-head clickable">
+        <span class="msym msub-icon">${ICON[type]}</span>
+        <span class="msub-name">${LABEL[type]}</span>
+        <span class="avail-reward">${rewardText(type)}</span>
+        <span class="msym zrow-chev">${open ? 'expand_less' : 'expand_more'}</span>
+      </div>
+      ${open ? `<div class="msub-body">${setupBodyHTML(type)}</div>` : ''}</div>`;
+  }
+
+  function renderZones() {
+    zoneList.innerHTML = '';
+
+    for (const z of colony.zones) {
+      const zoneOpen = openZone === z.id;
       const row = document.createElement('div');
-      row.className = `zrow${isOpen ? ' open' : ''}`;
+      row.className = `zrow${z.home ? ' home' : ''}${zoneOpen ? ' open' : ''}`;
+      const tag = z.home ? '<span class="zone-tag">HUB</span>' : '';
+      const body = zoneOpen
+        ? `<div class="zrow-body">${GATHER_TYPES.map(missionSubHTML).join('')}</div>`
+        : '';
       row.innerHTML = `
         <div class="zrow-head clickable">
-          <span class="msym zrow-icon">${ICON[e.type]}</span>
-          <span class="zrow-name"><b>${LABEL[e.type]}</b> <span class="mission-desc">${e.sub}</span></span>
-          <span class="avail-reward">${rewardText(e.type)}</span>
-          <span class="msym zrow-chev">${isOpen ? 'expand_less' : 'expand_more'}</span>
-        </div>
-        ${isOpen ? `<div class="zrow-body">${setupBodyHTML(e.type)}</div>` : ''}`;
-      row.querySelector('.zrow-head')!.addEventListener('click', () => openMission(e));
-      availList.appendChild(row);
+          <span class="msym zrow-icon">${z.home ? 'hub' : 'place'}</span>
+          <span class="zrow-name"><b>${z.name}</b> <span class="mission-desc">${z.kind}</span></span>
+          ${tag}<span class="msym zrow-chev">${zoneOpen ? 'expand_less' : 'expand_more'}</span>
+        </div>${body}`;
+      row.querySelector('.zrow-head')!.addEventListener('click', () => toggleZone(z.id));
+      if (zoneOpen) {
+        row.querySelectorAll('.msub').forEach((sub) => {
+          const t = (sub as HTMLElement).dataset.mt as MissionType;
+          sub.querySelector('.msub-head')!.addEventListener('click', () => toggleMission(t));
+        });
+      }
+      zoneList.appendChild(row);
     }
+
+    // Explore row at the bottom (expands straight to its setup)
+    const exploreOpen = openZone === 'explore';
+    const canExplore = colony.zonesRemaining;
+    const erow = document.createElement('div');
+    erow.className = `zrow explore${exploreOpen ? ' open' : ''}`;
+    erow.innerHTML = `
+      <div class="zrow-head${canExplore ? ' clickable' : ''}">
+        <span class="msym zrow-icon">travel_explore</span>
+        <span class="zrow-name"><b>Explore</b> <span class="mission-desc">${canExplore ? 'Chart a new zone' : 'Region fully explored'}</span></span>
+        ${canExplore ? `<span class="msym zrow-chev">${exploreOpen ? 'expand_less' : 'expand_more'}</span>` : ''}
+      </div>
+      ${exploreOpen ? `<div class="zrow-body">${setupBodyHTML('explore')}</div>` : ''}`;
+    if (canExplore) erow.querySelector('.zrow-head')!.addEventListener('click', () => toggleZone('explore', true));
+    zoneList.appendChild(erow);
+
     wireSetup();
   }
 
   function wireSetup() {
-    if (openKey === null) return;
-    availList.querySelectorAll('.zrow.open .mcrew-row').forEach((r) =>
+    if (openZone === null || openMission === null) return;
+    zoneList.querySelectorAll('.mcrew-row.selectable').forEach((r) =>
       r.addEventListener('click', () => {
         const id = Number((r as HTMLElement).dataset.crew);
         const alt = colony.availableCrew.find((c) => !selected.has(c.id));
         if (alt) {
           selected.delete(id);
           selected.add(alt.id);
-          renderAvailable();
+          renderZones();
         }
       }),
     );
-    const launch = availList.querySelector('.zrow.open .setup-launch') as HTMLButtonElement | null;
+    const launch = zoneList.querySelector('.setup-launch') as HTMLButtonElement | null;
     if (launch) {
       launch.disabled = selected.size !== MISSION_CREW;
       launch.addEventListener('click', () => {
-        colony.launchMission(openType, openZoneId, [...selected]);
-        openKey = null;
+        const zoneId = openZone === 'explore' ? null : (openZone as number);
+        colony.launchMission(openMission!, zoneId, [...selected]);
+        openZone = null;
+        openMission = null;
         selected.clear();
-        renderAvailable();
+        renderZones();
       });
     }
   }
 
   function update() {
-    // active missions (rebuild on set change; progress each frame)
+    // active missions
     activeCount.textContent = `(${colony.activeMissions.length})`;
     const sig = colony.activeMissions.map((m) => m.id).join(',');
     if (sig !== activeSig) {
@@ -198,24 +224,12 @@ export function createMissionsPage(colony: Colony) {
       }
     }
 
-    // available missions — rebuild when zones or active set change (keeps crew fresh)
-    const asig = colony.zones.map((z) => z.id).join(',') + '|' + sig;
-    if (asig !== availSig) {
-      availSig = asig;
-      renderAvailable();
-    }
-
-    // zones reference list
+    // zones (re-render on zone or mission-set change; keeps crew availability fresh)
     zoneCount.textContent = `(${colony.zones.length})`;
-    const zsig = colony.zones.map((z) => z.id).join(',');
+    const zsig = colony.zones.map((z) => z.id).join(',') + '|' + sig;
     if (zsig !== zoneSig) {
       zoneSig = zsig;
-      zoneRef.innerHTML = colony.zones
-        .map(
-          (z) =>
-            `<div class="zref${z.home ? ' home' : ''}"><span class="msym zrow-icon">${z.home ? 'hub' : 'place'}</span><span class="zrow-name"><b>${z.name}</b> <span class="mission-desc">${z.kind}</span></span>${z.home ? '<span class="zone-tag">HUB</span>' : ''}</div>`,
-        )
-        .join('');
+      renderZones();
     }
   }
 

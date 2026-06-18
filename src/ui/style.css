@@ -120,6 +120,15 @@ body {
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
+/* zone picker (choose a target zone for a gather mission) */
+.zone-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.zone-pick-l { font-size: 12px; color: var(--ink-dim); margin-right: 4px; }
+.zchip {
+  background: var(--panel) !important; color: var(--ink) !important; border: 1px solid var(--line) !important;
+  border-radius: 14px !important; padding: 4px 12px !important; font-size: 12px; cursor: pointer;
+}
+.zchip.active { border-color: var(--accent) !important; color: var(--accent) !important; background: #16242f !important; }
+
 /* mission sub-rows nested under a zone */
 .zrow-body .msub { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
 .zrow-body .msub + .msub { margin-top: 6px; }

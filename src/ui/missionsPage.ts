@@ -19,8 +19,6 @@ const STATS: { key: keyof CrewMember['stats']; label: string }[] = [
   { key: 'grit', label: 'GRT' },
 ];
 
-type ZoneKey = number | 'explore' | null;
-
 export function createMissionsPage(colony: Colony) {
   const el = document.createElement('div');
   el.className = 'page';
@@ -39,9 +37,8 @@ export function createMissionsPage(colony: Colony) {
   const zoneCount = el.querySelector('.zone-count') as HTMLElement;
   const zoneList = el.querySelector('.zone-list') as HTMLElement;
 
-  let openZone: ZoneKey = null; // expanded zone (or 'explore')
-  let openMission: MissionType | null = null; // expanded mission within the open zone
-  const selected = new Set<number>();
+  const openZones = new Set<number>(); // expanded zone ids (multiple allowed)
+  const teams = new Map<string, Set<number>>(); // open mission setup -> staged crew
   let activeSig = '';
   let zoneSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement }>();
@@ -52,70 +49,76 @@ export function createMissionsPage(colony: Colony) {
     return `+${GATHER_ORE_AMOUNT} ore`;
   }
 
-  function autoFillTeam() {
-    selected.clear();
+  // crew staged in any OPEN setup other than `exceptKey` (teams stay disjoint)
+  function stagedElsewhere(exceptKey: string): Set<number> {
+    const s = new Set<number>();
+    for (const [k, t] of teams) if (k !== exceptKey) for (const id of t) s.add(id);
+    return s;
+  }
+  function autoFill(key: string) {
+    const t = new Set<number>();
+    const taken = stagedElsewhere(key);
     for (const c of colony.availableCrew) {
-      if (selected.size >= MISSION_CREW) break;
-      selected.add(c.id);
+      if (t.size >= MISSION_CREW) break;
+      if (!taken.has(c.id)) t.add(c.id);
     }
+    teams.set(key, t);
   }
 
-  function toggleZone(key: ZoneKey, explore = false) {
-    if (openZone === key) {
-      openZone = null;
-      openMission = null;
+  function toggleZone(id: number) {
+    if (openZones.has(id)) {
+      openZones.delete(id);
+      for (const k of [...teams.keys()]) if (k.startsWith(`${id}:`)) teams.delete(k);
     } else {
-      openZone = key;
-      openMission = explore ? 'explore' : null;
-      if (explore) autoFillTeam();
+      openZones.add(id);
     }
     renderZones();
   }
-  function toggleMission(type: MissionType) {
-    if (openMission === type) openMission = null;
-    else {
-      openMission = type;
-      autoFillTeam();
-    }
+  function toggleMission(key: string) {
+    if (teams.has(key)) teams.delete(key);
+    else autoFill(key);
     renderZones();
   }
 
-  function setupBodyHTML(type: MissionType): string {
-    const dur = Math.ceil(colony.missionDuration(type));
-    const team = colony.crew.filter((c) => selected.has(c.id));
+  function setupHTML(key: string, type: MissionType, zoneId: number | null): string {
+    const t = teams.get(key) ?? new Set<number>();
+    const team = colony.crew.filter((c) => t.has(c.id));
     const rows = team.map((c) => crewRowHTML(c, true)).join('');
-    const short = selected.size < MISSION_CREW;
-    return `
-      <div class="setup-pick">Away team — <b>${selected.size}/${MISSION_CREW}</b>${short ? ' · not enough crew available' : ' · tap a member to swap'}</div>
+    const short = t.size < MISSION_CREW;
+    const dur = Math.ceil(colony.missionDuration(type));
+    return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
+      <div class="setup-pick">Away team — <b>${t.size}/${MISSION_CREW}</b>${short ? ' · not enough crew available' : ' · tap a member to swap'}</div>
       <div class="mcrew-list">${rows || '<div class="empty">No crew available.</div>'}</div>
       <div class="setup-foot">
         <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type)}</span>
         <button class="setup-launch">Launch</button>
-      </div>`;
+      </div>
+    </div>`;
   }
 
-  function missionSubHTML(type: MissionType): string {
-    const open = openMission === type;
-    return `<div class="msub${open ? ' open' : ''}" data-mt="${type}">
-      <div class="msub-head clickable">
+  function missionSubHTML(zoneId: number, type: MissionType): string {
+    const key = `${zoneId}:${type}`;
+    const open = teams.has(key);
+    return `<div class="msub${open ? ' open' : ''}">
+      <div class="msub-head clickable" data-key="${key}">
         <span class="msym msub-icon">${ICON[type]}</span>
         <span class="msub-name">${LABEL[type]}</span>
         <span class="avail-reward">${rewardText(type)}</span>
         <span class="msym zrow-chev">${open ? 'expand_less' : 'expand_more'}</span>
       </div>
-      ${open ? `<div class="msub-body">${setupBodyHTML(type)}</div>` : ''}</div>`;
+      ${open ? `<div class="msub-body">${setupHTML(key, type, zoneId)}</div>` : ''}</div>`;
   }
 
   function renderZones() {
     zoneList.innerHTML = '';
 
     for (const z of colony.zones) {
-      const zoneOpen = openZone === z.id;
+      const zoneOpen = openZones.has(z.id);
       const row = document.createElement('div');
       row.className = `zrow${z.home ? ' home' : ''}${zoneOpen ? ' open' : ''}`;
       const tag = z.home ? '<span class="zone-tag">HUB</span>' : '';
       const body = zoneOpen
-        ? `<div class="zrow-body">${GATHER_TYPES.map(missionSubHTML).join('')}</div>`
+        ? `<div class="zrow-body">${GATHER_TYPES.map((t) => missionSubHTML(z.id, t)).join('')}</div>`
         : '';
       row.innerHTML = `
         <div class="zrow-head clickable">
@@ -125,16 +128,15 @@ export function createMissionsPage(colony: Colony) {
         </div>${body}`;
       row.querySelector('.zrow-head')!.addEventListener('click', () => toggleZone(z.id));
       if (zoneOpen) {
-        row.querySelectorAll('.msub').forEach((sub) => {
-          const t = (sub as HTMLElement).dataset.mt as MissionType;
-          sub.querySelector('.msub-head')!.addEventListener('click', () => toggleMission(t));
-        });
+        row.querySelectorAll('.msub-head').forEach((h) =>
+          h.addEventListener('click', () => toggleMission((h as HTMLElement).dataset.key!)),
+        );
       }
       zoneList.appendChild(row);
     }
 
-    // Explore row at the bottom (expands straight to its setup)
-    const exploreOpen = openZone === 'explore';
+    // Explore row at the bottom (its own setup; no target zone)
+    const exploreOpen = teams.has('explore');
     const canExplore = colony.zonesRemaining;
     const erow = document.createElement('div');
     erow.className = `zrow explore${exploreOpen ? ' open' : ''}`;
@@ -144,38 +146,43 @@ export function createMissionsPage(colony: Colony) {
         <span class="zrow-name"><b>Explore</b> <span class="mission-desc">${canExplore ? 'Chart a new zone' : 'Region fully explored'}</span></span>
         ${canExplore ? `<span class="msym zrow-chev">${exploreOpen ? 'expand_less' : 'expand_more'}</span>` : ''}
       </div>
-      ${exploreOpen ? `<div class="zrow-body">${setupBodyHTML('explore')}</div>` : ''}`;
-    if (canExplore) erow.querySelector('.zrow-head')!.addEventListener('click', () => toggleZone('explore', true));
+      ${exploreOpen ? `<div class="zrow-body">${setupHTML('explore', 'explore', null)}</div>` : ''}`;
+    if (canExplore) erow.querySelector('.zrow-head')!.addEventListener('click', () => toggleMission('explore'));
     zoneList.appendChild(erow);
 
-    wireSetup();
+    wireSetups();
   }
 
-  function wireSetup() {
-    if (openZone === null || openMission === null) return;
-    zoneList.querySelectorAll('.mcrew-row.selectable').forEach((r) =>
-      r.addEventListener('click', () => {
-        const id = Number((r as HTMLElement).dataset.crew);
-        const alt = colony.availableCrew.find((c) => !selected.has(c.id));
-        if (alt) {
-          selected.delete(id);
-          selected.add(alt.id);
-          renderZones();
-        }
-      }),
-    );
-    const launch = zoneList.querySelector('.setup-launch') as HTMLButtonElement | null;
-    if (launch) {
-      launch.disabled = selected.size !== MISSION_CREW;
+  function wireSetups() {
+    zoneList.querySelectorAll('.setup').forEach((setupEl) => {
+      const key = (setupEl as HTMLElement).dataset.key!;
+      const type = (setupEl as HTMLElement).dataset.mt as MissionType;
+      const zraw = (setupEl as HTMLElement).dataset.zone!;
+      const zoneId = zraw === 'x' ? null : Number(zraw);
+      const team = teams.get(key);
+      if (!team) return;
+
+      setupEl.querySelectorAll('.mcrew-row').forEach((r) =>
+        r.addEventListener('click', () => {
+          const id = Number((r as HTMLElement).dataset.crew);
+          const taken = new Set<number>();
+          for (const [, t] of teams) for (const cid of t) taken.add(cid);
+          const alt = colony.availableCrew.find((c) => !taken.has(c.id));
+          if (alt) {
+            team.delete(id);
+            team.add(alt.id);
+            renderZones();
+          }
+        }),
+      );
+      const launch = setupEl.querySelector('.setup-launch') as HTMLButtonElement;
+      launch.disabled = team.size !== MISSION_CREW;
       launch.addEventListener('click', () => {
-        const zoneId = openZone === 'explore' ? null : (openZone as number);
-        colony.launchMission(openMission!, zoneId, [...selected]);
-        openZone = null;
-        openMission = null;
-        selected.clear();
+        colony.launchMission(type, zoneId, [...team]);
+        teams.delete(key);
         renderZones();
       });
-    }
+    });
   }
 
   function update() {

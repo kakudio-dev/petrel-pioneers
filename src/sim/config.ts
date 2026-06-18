@@ -6,6 +6,10 @@ import type { BuildingType } from './types';
 
 export const FIXED_DT = 0.1; // seconds per sim step
 
+// --- Calendar: the colony clock runs in seasons (~1 minute each), 4 to a year ---
+export const SEASON_LENGTH = 60; // seconds per season
+export const SEASONS = ['Thaw', 'Highsun', 'Wane', 'Dark'];
+
 // --- Energy grid: production, draw, and battery storage per building type ---
 // Producers (command module, generators) feed the grid; consumers (extractors,
 // habitats, greenhouses) draw a fixed amount while active (scaled by staffing).

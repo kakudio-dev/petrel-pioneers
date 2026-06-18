@@ -20,11 +20,11 @@ const header = document.createElement('div');
 header.className = 'title';
 header.innerHTML = `
   <div>
-    <h1>🐦 Petrel Pioneers <span class="sub">v0.2 core loop</span></h1>
+    <h1>Petrel Pioneers <span class="sub">v0.2 core loop</span></h1>
   </div>
   <div class="clockbar">
     <span class="clock">0:00</span>
-    <button data-speed="0">⏸</button>
+    <button data-speed="0"><span class="msym">pause</span></button>
     <button data-speed="1">1×</button>
     <button data-speed="5">5×</button>
     <button data-speed="20">20×</button>
@@ -33,10 +33,8 @@ header.innerHTML = `
 const banner = document.createElement('div');
 banner.className = 'banner';
 
-const POWER_DEFICIT_MSG =
-  '⚠ POWER DEFICIT — demand exceeds generation and the battery is empty. Power flows by priority, so the buildings lowest in the list go dark first. Build a generator, demolish a consumer, or reorder (▲▼) to choose who stays powered.';
 const FAMINE_MSG =
-  '⚠ FAMINE — the larder is empty and there is not enough food. Crew are dying. Get a greenhouse running NOW, or the colony will starve out.';
+  '<span class="msym">warning</span> FAMINE — the larder is empty and there is not enough food. Crew are dying. Get a greenhouse running NOW, or the colony will starve out.';
 
 const cols = document.createElement('div');
 cols.className = 'cols';
@@ -49,7 +47,7 @@ const overlay = document.createElement('div');
 overlay.className = 'overlay';
 overlay.innerHTML = `
   <div class="overlay-card">
-    <h2>☠ COLONY LOST</h2>
+    <h2><span class="msym">skull</span> COLONY LOST</h2>
     <p>Your crew starved. The command module ships with a full larder but grows no
     food — establish a greenhouse before it runs dry.</p>
     <button class="restart">Restart</button>
@@ -90,13 +88,12 @@ function render() {
   stocks.update(colony);
   directives.update();
   buildings.update();
-  // Surface whichever crisis is active. Power deficit comes first — it also starves
-  // greenhouses, so fixing the grid often fixes the famine too.
-  const { brownout, starving, foodRatio } = colony.flows;
+  // Famine is the only banner — a power deficit is now legible from the per-building
+  // power blocks and the energy card's alarm, so it needs no nag.
+  const { starving, foodRatio } = colony.flows;
   const famine = starving && foodRatio < 0.99; // empty larder AND crew declining
-  if (brownout) banner.textContent = POWER_DEFICIT_MSG;
-  else if (famine) banner.textContent = FAMINE_MSG;
-  banner.classList.toggle('show', brownout || famine);
+  if (famine) banner.innerHTML = FAMINE_MSG;
+  banner.classList.toggle('show', famine);
   overlay.classList.toggle('show', colony.failed);
   const t = Math.floor(colony.elapsed);
   clockEl.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;

@@ -47,13 +47,13 @@ export function createBuildingsPanel(colony: Colony) {
   el.innerHTML = `
     <h2>Buildings &amp; Power</h2>
     <div class="powerbar">
-      <span class="pb-label">⚡ Power</span>
+      <span class="pb-label"><span class="msym">bolt</span> Power</span>
       <span class="pb-nums"></span>
       <span class="pb-track"><span class="pb-fill"></span></span>
       <span class="pb-powered"></span>
     </div>
     <div class="popbar">
-      <span class="pb-label">👥 Population</span>
+      <span class="pb-label"><span class="msym">groups</span> Population</span>
       <span class="pb-nums"></span>
       <span class="blocks pop"></span>
     </div>
@@ -96,7 +96,7 @@ export function createBuildingsPanel(colony: Colony) {
 
     // power-budget bar
     const f = colony.flows;
-    pbNums.textContent = `gen ${f.energyProduction.toFixed(0)} · use ${f.energyConsumption.toFixed(0)} · 🔋 ${fmt(colony.E)}/${fmt(colony.energyCap)}`;
+    pbNums.innerHTML = `gen ${f.energyProduction.toFixed(0)} · use ${f.energyConsumption.toFixed(0)} · <span class="msym">battery_full</span> ${fmt(colony.E)}/${fmt(colony.energyCap)}`;
     const greenPct = f.energyConsumption > 0 ? Math.min(f.energyProduction, f.energyConsumption) / f.energyConsumption * 100 : 100;
     pbFill.style.width = `${greenPct}%`;
     pbTrack.classList.toggle('deficit', f.energyProduction < f.energyConsumption - 0.01);
@@ -154,10 +154,10 @@ export function createBuildingsPanel(colony: Colony) {
   return { el, update };
 }
 
-function blocksMeter(kind: string, icon: string, count: number): string {
+function blocksMeter(kind: string, iconName: string, count: number): string {
   let blks = '';
   for (let i = 0; i < count; i++) blks += '<span class="blk"></span>';
-  return `<span class="meter" title="${kind === 'pwr' ? 'power' : 'workers'}"><span class="mi">${icon}</span><span class="blocks ${kind}">${blks}</span></span>`;
+  return `<span class="meter" title="${kind === 'pwr' ? 'power' : 'workers'}"><span class="msym mi">${iconName}</span><span class="blocks ${kind}">${blks}</span></span>`;
 }
 function chip(text: string): string {
   return `<span class="chip">${text}</span>`;
@@ -165,10 +165,10 @@ function chip(text: string): string {
 
 function activeMetersHTML(b: Building): string {
   let html = '';
-  if (ENERGY_PRODUCTION[b.type] > 0) html += chip(`⚡ +${ENERGY_PRODUCTION[b.type]}`);
-  if (ENERGY_DRAW[b.type] > 0) html += blocksMeter('pwr', '⚡', ENERGY_DRAW[b.type]);
-  if (CREW_REQ[b.type] > 0) html += blocksMeter('crew', '👷', CREW_REQ[b.type]);
-  if (b.capacity > 0) html += chip(`🛏 ${b.capacity}`);
+  if (ENERGY_PRODUCTION[b.type] > 0) html += chip(`<span class="msym">bolt</span> +${ENERGY_PRODUCTION[b.type]}`);
+  if (ENERGY_DRAW[b.type] > 0) html += blocksMeter('pwr', 'bolt', ENERGY_DRAW[b.type]);
+  if (CREW_REQ[b.type] > 0) html += blocksMeter('crew', 'engineering', CREW_REQ[b.type]);
+  if (b.capacity > 0) html += chip(`<span class="msym">bed</span> ${b.capacity}`);
   return `<span class="meters">${html}</span>`;
 }
 
@@ -198,7 +198,7 @@ function createRow(colony: Colony, b: Building): Row {
     el.className = isCore ? 'brow core' : 'brow';
     el.innerHTML = `${dot}${name}
       ${activeMetersHTML(b)}
-      ${isCore ? '<span class="arrows"></span>' : '<span class="arrows"><button class="up" title="raise priority">▲</button><button class="down" title="lower priority">▼</button></span>'}
+      ${isCore ? '<span class="arrows"></span>' : '<span class="arrows"><button class="up" title="raise priority"><span class="msym">keyboard_arrow_up</span></button><button class="down" title="lower priority"><span class="msym">keyboard_arrow_down</span></button></span>'}
       ${isCore ? '<span class="locked">locked</span>' : '<button class="kill">Demolish</button>'}`;
     if (!isCore) {
       el.querySelector('.kill')!.addEventListener('click', () => colony.demolish(b.id));

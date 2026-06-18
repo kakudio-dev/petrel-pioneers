@@ -12,14 +12,14 @@ export function createDirectivesPanel(colony: Colony) {
     <h2>Directives</h2>
 
     <div class="dir">
-      <div class="dlabel">🔌 Power & Workers <span style="color:var(--ink-dim)">(by priority)</span></div>
+      <div class="dlabel"><span class="msym">bolt</span> Power & Workers <span style="color:var(--ink-dim)">(by priority)</span></div>
       <div class="dhint">Generation and crew flow down the building list, top to bottom.
       When power or crew runs short, the buildings lowest in the list go dark or
       unstaffed first. Reorder buildings (▲▼) to choose who keeps running.</div>
     </div>
 
     <div class="dir">
-      <div class="dlabel">🌱 Growth Footing</div>
+      <div class="dlabel"><span class="msym">eco</span> Growth Footing</div>
       <div class="seg footing"></div>
       <div class="dhint">Expansion grows crew fast; Conservation nearly halts growth to
       hold a steady, low-demand colony while you rebalance.</div>

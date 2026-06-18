@@ -35,7 +35,7 @@ export function createStocksPanel() {
     refs.eVal.textContent = `${fmt(colony.E)} / ${fmt(colony.energyCap)}`;
     setNet(refs.eNet, f.energyNet);
     refs.eSub.textContent = f.brownout
-      ? `⚡ ${f.poweredCount}/${f.consumerCount} powered · gen ${f.energyProduction.toFixed(0)} < use ${f.energyConsumption.toFixed(0)}`
+      ? `${f.poweredCount}/${f.consumerCount} powered · gen ${f.energyProduction.toFixed(0)} < use ${f.energyConsumption.toFixed(0)}`
       : `gen ${f.energyProduction.toFixed(0)} · use ${f.energyConsumption.toFixed(0)}${f.storageWasted ? ' · full' : ''}`;
     refs.eCard.classList.toggle('alarm', f.brownout);
 
@@ -51,7 +51,7 @@ export function createStocksPanel() {
     refs.fVal.textContent = `${fmt(colony.food)} / ${fmt(colony.foodCap)}`;
     setNet(refs.fNet, f.foodNet);
     refs.fSub.textContent = famine
-      ? `🍽 fed ${Math.round(f.foodRatio * 100)}% · grow ${f.foodProduction.toFixed(1)} < eat ${f.foodConsumption.toFixed(1)}`
+      ? `fed ${Math.round(f.foodRatio * 100)}% · grow ${f.foodProduction.toFixed(1)} < eat ${f.foodConsumption.toFixed(1)}`
       : f.starving
         ? `larder empty · grow ${f.foodProduction.toFixed(1)} · eat ${f.foodConsumption.toFixed(1)}`
         : `grow ${f.foodProduction.toFixed(1)} · eat ${f.foodConsumption.toFixed(1)}`;

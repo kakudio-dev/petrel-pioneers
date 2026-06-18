@@ -2,7 +2,7 @@
 // Energy is an automatic power grid; food is an analogous larder. Every building
 // has a fixed power profile; consumers throttle when the battery empties.
 
-import type { BuildingType, Footing } from './types';
+import type { BuildingType } from './types';
 
 export const FIXED_DT = 0.1; // seconds per sim step
 
@@ -43,9 +43,9 @@ export const FOOD_PRODUCTION: Record<BuildingType, number> = {
   greenhouse: 6, // +food/s at full staffing & power
 };
 
-// When the larder is empty and food can't feed everyone, the unfed fraction of crew
-// dies off at this rate. High enough that ignoring food is fatal, not just a stall.
-export const STARVE_RATE = 0.09;
+// When the larder is empty and food can't keep up, the colony loses one crew
+// member every STARVE_DELAY seconds (discrete, not a smooth shrink).
+export const STARVE_DELAY = 9;
 export const FOOD_STORAGE: Record<BuildingType, number> = {
   command: 200, // the larder
   generator: 0,
@@ -99,12 +99,16 @@ export const CREW_REQ: Record<BuildingType, number> = {
   greenhouse: 3,
 };
 
-// --- Crew growth by footing (Directive 3) ---
-export const GROWTH_RATE: Record<Footing, number> = {
-  expansion: 0.08,
-  balanced: 0.05,
-  conservation: 0.004,
-};
+// --- Crew tasks ---
+// Per-crew yield when sent on a gathering mission (resource/s each).
+export const ORE_GATHER_RATE = 2.5;
+export const FOOD_GATHER_RATE = 1.2;
+
+// Names drawn (in order) for the colony roster.
+export const CREW_NAMES = [
+  'Vance', 'Okoye', 'Rhys', 'Calla', 'Mireh', 'Dov', 'Sten', 'Yara',
+  'Pell', 'Nim', 'Asha', 'Bran', 'Cyra', 'Tam', 'Iko', 'Wren',
+];
 
 // --- Slots / expansion (Tier 1) — the command module is separate infra, so all
 //     SLOT_CAP_START slots are free for the player's own buildings. ---

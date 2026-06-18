@@ -3,9 +3,19 @@
 
 export type BuildingType = 'command' | 'generator' | 'extractor' | 'habitat' | 'greenhouse';
 
-export type Footing = 'expansion' | 'balanced' | 'conservation';
-
 export type StaffStatus = 'staffed' | 'understaffed' | 'starved' | 'online';
+
+/** What a crew member is doing. 'building' = part of the labour pool that staffs
+ *  buildings (the default). Others take them off that pool. */
+export type CrewTask = 'building' | 'gatherOre' | 'gatherFood' | 'construction' | 'expand' | 'idle';
+
+export interface CrewMember {
+  id: number;
+  name: string;
+  /** Placeholder stats (0..10) — surfaced in the UI, no sim effect yet. */
+  stats: { vigor: number; tech: number; grit: number };
+  task: CrewTask;
+}
 
 /** A building under construction, fully operational, or being torn down. Only
  *  'active' buildings produce, consume, house crew, or provide storage. */
@@ -31,11 +41,6 @@ export interface Building {
   progress: number;
 }
 
-export interface Directives {
-  /** Growth footing mode. (Power & worker priority is the building list order now.) */
-  footing: Footing;
-}
-
 /** Last-tick flow snapshot, surfaced to the UI. Rates are per second. */
 export interface Flows {
   // Energy grid
@@ -59,8 +64,8 @@ export interface Flows {
   starving: boolean;
 
   // Crew
-  crewCap: number; // effective capacity after power + food throttles
-  crewNet: number; // growth minus shrinkage
+  crewCap: number; // housing capacity (power-throttled habitats + command)
+  buildingCrew: number; // crew currently in the building-staffing pool
 
   brownout: boolean;
 }

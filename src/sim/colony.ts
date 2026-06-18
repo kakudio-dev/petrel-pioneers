@@ -1,8 +1,17 @@
-import type { Building, BuildingType, BuildState, Directives, Flows, StaffStatus } from './types';
+import type {
+  Building,
+  BuildingType,
+  BuildState,
+  CrewMember,
+  CrewTask,
+  Flows,
+  StaffStatus,
+} from './types';
 import * as C from './config';
 
 let nextId = 1;
 const genId = () => nextId++;
+const stat = () => 3 + Math.floor(Math.random() * 7); // placeholder 3..9
 
 /**
  * A self-contained colony sim object. Owns its slots, stocks, buildings, and
@@ -23,7 +32,10 @@ export class Colony {
   E = C.START_E; // energy in the battery
   iron = C.START_IRON;
   food = C.START_FOOD;
-  crew = C.START_CREW;
+
+  // --- Crew (a roster of named individuals, not a number) ---
+  crew: CrewMember[] = [];
+  private starveTimer = 0;
 
   // --- Space ---
   slotCap = C.SLOT_CAP_START;
@@ -31,16 +43,13 @@ export class Colony {
 
   buildings: Building[] = [];
 
-  directives: Directives = {
-    footing: 'balanced',
-  };
-
   flows: Flows = emptyFlows();
   elapsed = 0;
   failed = false;
 
   constructor() {
     this.buildings.push(makeBuilding('command', 'active'));
+    for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i));
   }
 
   // --- Derived getters ---
@@ -61,6 +70,20 @@ export class Colony {
   }
   get crewCapacity(): number {
     return this.buildings.reduce((s, b) => (b.state === 'active' ? s + b.capacity : s), 0);
+  }
+  get crewCount(): number {
+    return this.crew.length;
+  }
+  /** Crew in the building-staffing pool (task = 'building'). */
+  get buildingCrew(): number {
+    return this.crew.filter((c) => c.task === 'building').length;
+  }
+  crewOnTask(task: CrewTask): number {
+    return this.crew.filter((c) => c.task === task).length;
+  }
+  setTask(id: number, task: CrewTask): void {
+    const c = this.crew.find((x) => x.id === id);
+    if (c) c.task = task;
   }
   get expandCost(): number {
     return Math.round(C.EXPAND_BASE_COST * C.EXPAND_COST_GROWTH ** this.expandCount);
@@ -179,14 +202,15 @@ export class Colony {
       }
     }
 
-    // 4. Food larder: greenhouses grow it (per-building power & staffing); crew eat it.
-    let foodProduction = 0;
+    // 4. Food larder: greenhouses grow it (per-building power & staffing), plus any
+    //    crew on a gather-food mission. All crew eat, whatever their task.
+    let foodProduction = this.crewOnTask('gatherFood') * C.FOOD_GATHER_RATE;
     for (const b of active) {
       const base = C.FOOD_PRODUCTION[b.type];
       if (base === 0) continue;
       foodProduction += base * b.staffing * b.powerLevel;
     }
-    const foodConsumption = this.crew * C.FOOD_PER_CREW;
+    const foodConsumption = this.crew.length * C.FOOD_PER_CREW;
     const foodCap = this.foodCap;
     const tentativeF = this.food + (foodProduction - foodConsumption) * dt;
     let foodRatio = 1;
@@ -199,25 +223,29 @@ export class Colony {
       this.food = 0;
     }
 
-    // 5. Crew grows toward housing capacity (each habitat throttled by its own power).
+    // 5. Housing capacity (each habitat throttled by its own power). Crew no longer
+    //    grows automatically — the roster is fixed until arrivals are added.
     let housingCap = 0;
     for (const b of active) {
       housingCap += b.type === 'habitat' ? b.capacity * b.powerLevel : b.capacity;
     }
-    const growthRate = C.GROWTH_RATE[this.directives.footing];
-    const crewGrowth = housingCap > 0 ? growthRate * this.crew * (1 - this.crew / housingCap) : 0;
 
-    // 6. Starvation: an empty larder that can't feed everyone kills the unfed crew.
-    const starveLoss = starving ? this.crew * (1 - foodRatio) * C.STARVE_RATE : 0;
-    this.crew += (crewGrowth - starveLoss) * dt;
-    if (this.crew < 0) this.crew = 0;
-    if (this.crew < 1) {
-      this.crew = 0;
-      this.failed = true;
+    // 6. Starvation: an empty larder that can't keep up loses one crew member every
+    //    STARVE_DELAY seconds — discrete, not a smooth shrink.
+    if (starving) {
+      this.starveTimer += dt;
+      if (this.starveTimer >= C.STARVE_DELAY && this.crew.length > 0) {
+        this.crew.pop();
+        this.starveTimer = 0;
+      }
+    } else {
+      this.starveTimer = Math.max(0, this.starveTimer - dt);
     }
+    if (this.crew.length === 0) this.failed = true;
 
-    // 7. Iron from extractors (staffing × its power), capped by the stockpile.
-    let ironProduced = 0;
+    // 7. Iron from extractors (staffing × its power) plus any gather-ore crew,
+    //    capped by the stockpile.
+    let ironProduced = this.crewOnTask('gatherOre') * C.ORE_GATHER_RATE;
     for (const b of active) {
       if (b.type === 'extractor') ironProduced += C.EXTRACTOR_OUTPUT * b.staffing * b.powerLevel;
     }
@@ -248,7 +276,7 @@ export class Colony {
     f.foodRatio = foodRatio;
     f.starving = starving;
     f.crewCap = housingCap;
-    f.crewNet = crewGrowth - starveLoss;
+    f.buildingCrew = this.buildingCrew;
     this.flows = f;
   }
 
@@ -293,7 +321,8 @@ export class Colony {
         b.batPower = 0;
       }
     }
-    let remaining = this.crew;
+    // Only crew tasked to building work staff buildings; missions/idle don't.
+    let remaining = this.buildingCrew;
     for (const b of active) {
       const req = C.CREW_REQ[b.type];
       if (req <= 0) {
@@ -349,8 +378,18 @@ function emptyFlows(): Flows {
     foodRatio: 1,
     starving: false,
     crewCap: 0,
-    crewNet: 0,
+    buildingCrew: 0,
     brownout: false,
+  };
+}
+
+function makeCrew(index: number): CrewMember {
+  const name = C.CREW_NAMES[index % C.CREW_NAMES.length];
+  return {
+    id: genId(),
+    name,
+    stats: { vigor: stat(), tech: stat(), grit: stat() },
+    task: 'building',
   };
 }
 

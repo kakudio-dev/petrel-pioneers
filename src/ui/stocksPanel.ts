@@ -57,9 +57,11 @@ export function createStocksPanel() {
         : `grow ${f.foodProduction.toFixed(1)} · eat ${f.foodConsumption.toFixed(1)}`;
     refs.fCard.classList.toggle('alarm', famine);
 
-    refs.cVal.textContent = `${fmt(colony.crew)} / ${fmt(f.crewCap || colony.crewCapacity)}`;
-    setNet(refs.cNet, f.crewNet);
-    refs.cSub.textContent = f.starving ? 'cap (food-limited)' : f.brownout ? 'cap throttled' : 'cap';
+    refs.cVal.textContent = `${fmt(colony.crewCount)} / ${fmt(colony.crewCapacity)}`;
+    refs.cNet.className = 'net zero';
+    refs.cNet.textContent = f.starving ? 'starving' : '';
+    refs.cNet.classList.toggle('neg', f.starving);
+    refs.cSub.textContent = `${f.buildingCrew} on shift`;
 
     refs.sVal.textContent = `${colony.slotsUsed} / ${colony.slotCap}`;
     const free = colony.freeSlots;

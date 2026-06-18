@@ -2,8 +2,9 @@ import './ui/style.css';
 import { Colony } from './sim/colony';
 import { TickLoop } from './sim/tickLoop';
 import { createStocksPanel } from './ui/stocksPanel';
-import { createDirectivesPanel } from './ui/directivesPanel';
 import { createBuildingsPanel } from './ui/buildingsPanel';
+import { createCrewPage } from './ui/crewPage';
+import { createSummaryPage } from './ui/summaryPage';
 
 const app = document.getElementById('app')!;
 
@@ -11,16 +12,26 @@ const app = document.getElementById('app')!;
 // portfolio (Tier 2) drops in without a rewrite.
 const colony = new Colony();
 
+// Resources live in the sidebar; the main area is a tabbed set of pages.
 const stocks = createStocksPanel();
-const directives = createDirectivesPanel(colony);
+const summary = createSummaryPage();
+const crew = createCrewPage(colony);
 const buildings = createBuildingsPanel(colony);
 
-// --- Header + clock bar ---
-const header = document.createElement('div');
-header.className = 'title';
-header.innerHTML = `
-  <div>
-    <h1>Petrel Pioneers <span class="sub">v0.2 core loop</span></h1>
+const PAGES = [
+  { id: 'summary', label: 'Summary', page: summary },
+  { id: 'crew', label: 'Crew', page: crew },
+  { id: 'buildings', label: 'Buildings', page: buildings },
+];
+let activeId = 'crew';
+
+// --- Top bar: brand, tabs, clock ---
+const topbar = document.createElement('div');
+topbar.className = 'topbar';
+topbar.innerHTML = `
+  <span class="brand">Petrel Pioneers</span>
+  <div class="tabs">
+    ${PAGES.map((p) => `<button class="tab" data-tab="${p.id}">${p.label}</button>`).join('')}
   </div>
   <div class="clockbar">
     <span class="clock">0:00</span>
@@ -32,16 +43,21 @@ header.innerHTML = `
 
 const banner = document.createElement('div');
 banner.className = 'banner';
-
 const FAMINE_MSG =
   '<span class="msym">warning</span> FAMINE — the larder is empty and there is not enough food. Crew are dying. Get a greenhouse running NOW, or the colony will starve out.';
 
-const cols = document.createElement('div');
-cols.className = 'cols';
-cols.appendChild(directives.el);
-const right = document.createElement('div');
-right.appendChild(buildings.el);
-cols.appendChild(right);
+// --- Layout: sidebar (resources) + main (banner + active page) ---
+const layout = document.createElement('div');
+layout.className = 'layout';
+const sidebar = document.createElement('div');
+sidebar.className = 'sidebar';
+sidebar.appendChild(stocks.el);
+const main = document.createElement('div');
+main.className = 'main';
+main.appendChild(banner);
+for (const p of PAGES) main.appendChild(p.page.el);
+layout.appendChild(sidebar);
+layout.appendChild(main);
 
 const overlay = document.createElement('div');
 overlay.className = 'overlay';
@@ -54,14 +70,21 @@ overlay.innerHTML = `
   </div>`;
 overlay.querySelector('.restart')!.addEventListener('click', () => location.reload());
 
-app.appendChild(header);
-app.appendChild(stocks.el);
-app.appendChild(banner);
-app.appendChild(cols);
+app.appendChild(topbar);
+app.appendChild(layout);
 app.appendChild(overlay);
 
-const clockEl = header.querySelector('.clock') as HTMLElement;
-const speedBtns = Array.from(header.querySelectorAll('button[data-speed]')) as HTMLButtonElement[];
+const clockEl = topbar.querySelector('.clock') as HTMLElement;
+const speedBtns = Array.from(topbar.querySelectorAll('button[data-speed]')) as HTMLButtonElement[];
+const tabBtns = Array.from(topbar.querySelectorAll('.tab')) as HTMLButtonElement[];
+
+function setTab(id: string) {
+  activeId = id;
+  for (const p of PAGES) p.page.el.classList.toggle('hidden', p.id !== id);
+  tabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === id));
+}
+tabBtns.forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab!)));
+setTab(activeId);
 
 const loop = new TickLoop(
   (dt) => colony.step(dt),
@@ -86,12 +109,12 @@ setSpeed(1);
 
 function render() {
   stocks.update(colony);
-  directives.update();
-  buildings.update();
-  // Famine is the only banner — a power deficit is now legible from the per-building
-  // power blocks and the energy card's alarm, so it needs no nag.
+  const active = PAGES.find((p) => p.id === activeId);
+  active?.page.update();
+  // Famine is the only banner — a power deficit is legible from the per-building
+  // power blocks and the energy card's alarm.
   const { starving, foodRatio } = colony.flows;
-  const famine = starving && foodRatio < 0.99; // empty larder AND crew declining
+  const famine = starving && foodRatio < 0.99;
   if (famine) banner.innerHTML = FAMINE_MSG;
   banner.classList.toggle('show', famine);
   overlay.classList.toggle('show', colony.failed);

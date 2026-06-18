@@ -106,7 +106,7 @@ export function createBuildingsPanel(colony: Colony) {
     // population bar: one block per unit of housing capacity, filled by actual crew.
     // Empty blocks are housing we have but lack the crew to fill.
     const capacity = Math.round(colony.crewCapacity);
-    const crewN = Math.round(colony.crew);
+    const crewN = colony.crewCount;
     popNums.textContent = `${crewN} / ${capacity}`;
     if (capacity !== popCount) {
       popBlocks.innerHTML = '<span class="blk"></span>'.repeat(capacity);

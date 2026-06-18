@@ -49,18 +49,13 @@ export function createMissionsPage(colony: Colony) {
     return `+${GATHER_ORE_AMOUNT} ore`;
   }
 
-  // crew staged in any OPEN setup other than `exceptKey` (teams stay disjoint)
-  function stagedElsewhere(exceptKey: string): Set<number> {
-    const s = new Set<number>();
-    for (const [k, t] of teams) if (k !== exceptKey) for (const id of t) s.add(id);
-    return s;
-  }
+  // Crew may be staged in multiple pending setups at once; they only become
+  // exclusive when a mission is actually launched.
   function autoFill(key: string) {
     const t = new Set<number>();
-    const taken = stagedElsewhere(key);
     for (const c of colony.availableCrew) {
       if (t.size >= MISSION_CREW) break;
-      if (!taken.has(c.id)) t.add(c.id);
+      t.add(c.id);
     }
     teams.set(key, t);
   }
@@ -165,9 +160,7 @@ export function createMissionsPage(colony: Colony) {
       setupEl.querySelectorAll('.mcrew-row').forEach((r) =>
         r.addEventListener('click', () => {
           const id = Number((r as HTMLElement).dataset.crew);
-          const taken = new Set<number>();
-          for (const [, t] of teams) for (const cid of t) taken.add(cid);
-          const alt = colony.availableCrew.find((c) => !taken.has(c.id));
+          const alt = colony.availableCrew.find((c) => !team.has(c.id));
           if (alt) {
             team.delete(id);
             team.add(alt.id);
@@ -178,8 +171,20 @@ export function createMissionsPage(colony: Colony) {
       const launch = setupEl.querySelector('.setup-launch') as HTMLButtonElement;
       launch.disabled = team.size !== MISSION_CREW;
       launch.addEventListener('click', () => {
-        colony.launchMission(type, zoneId, [...team]);
+        const committed = [...team];
+        colony.launchMission(type, zoneId, committed);
         teams.delete(key);
+        // committed crew are now busy — drop them from other pending teams and backfill
+        for (const [, t] of teams) {
+          let changed = false;
+          for (const id of committed) if (t.delete(id)) changed = true;
+          if (changed) {
+            for (const c of colony.availableCrew) {
+              if (t.size >= MISSION_CREW) break;
+              if (!t.has(c.id)) t.add(c.id);
+            }
+          }
+        }
         renderZones();
       });
     });

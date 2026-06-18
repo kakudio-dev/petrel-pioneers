@@ -22,8 +22,8 @@ const buildings = createBuildingsPanel(colony);
 
 const PAGES = [
   { id: 'summary', label: 'Summary', page: summary },
-  { id: 'crew', label: 'Crew', page: crew },
   { id: 'missions', label: 'Missions', page: missions },
+  { id: 'crew', label: 'Crew', page: crew },
   { id: 'buildings', label: 'Buildings', page: buildings },
 ];
 let activeId = 'crew';

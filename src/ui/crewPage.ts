@@ -3,7 +3,7 @@ import type { CrewMember, CrewTask } from '../sim/types';
 
 const TASKS: { value: CrewTask; label: string }[] = [
   { value: 'building', label: 'Work in Buildings' },
-  { value: 'gatherOre', label: 'Gather Ore' },
+  { value: 'explore', label: 'Explore' },
   { value: 'gatherFood', label: 'Gather Food' },
   { value: 'construction', label: 'Construction' },
   { value: 'expand', label: 'Expand Base' },
@@ -11,7 +11,7 @@ const TASKS: { value: CrewTask; label: string }[] = [
 ];
 const STATUS: Record<CrewTask, string> = {
   building: 'On shift',
-  gatherOre: 'Gathering ore',
+  explore: 'Exploring',
   gatherFood: 'Gathering food',
   construction: 'On construction',
   expand: 'Surveying',

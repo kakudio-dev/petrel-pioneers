@@ -99,10 +99,18 @@ export const CREW_REQ: Record<BuildingType, number> = {
   greenhouse: 3,
 };
 
-// --- Crew tasks ---
-// Per-crew yield when sent on a gathering mission (resource/s each).
-export const ORE_GATHER_RATE = 2.5;
-export const FOOD_GATHER_RATE = 1.2;
+// --- Missions (discrete expeditions: prepare a team, launch, resolve on finish) ---
+export const MISSION_TEAM = 3; // default crew a "Prepare" assembles
+export const EXPLORE_TIME = 60; // seconds for 1 crew to discover a zone (÷ team size)
+export const GATHER_TIME = 25; // seconds for a food-gathering run
+export const FOOD_BATCH = 25; // food returned per crew on a gather run
+
+// Discovered-zone flavour (names used in order; kinds picked at random).
+export const ZONE_NAMES = [
+  'North Ridge', 'Black Flats', 'The Rift', 'Cinder Basin', 'Pale Hollow',
+  'Frost Reach', 'Iron Gulch', 'Still Sea', 'Ashfall', 'Dim Vale',
+];
+export const ZONE_KINDS = ['Ore Field', 'Ice Field', 'Cavern', 'Ruins', 'Geothermal Vent', 'Scrap Field'];
 
 // Names drawn (in order) for the colony roster.
 export const CREW_NAMES = [

@@ -64,7 +64,7 @@ body {
 .layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: 16px; align-items: start; }
 .sidebar .stock-grid { grid-template-columns: 1fr; }
 .main { min-width: 0; }
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 /* crew page */
 .crew-summary { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
@@ -96,26 +96,45 @@ body {
 .crew-status.task-expand { color: var(--accent); }
 
 /* missions page */
-.mission-summary { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
+.mission-summary, .zone-count { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
 .mission-list { display: flex; flex-direction: column; gap: 8px; }
-.mission-row {
-  display: grid; grid-template-columns: 28px minmax(0, 1fr) 120px auto; gap: 12px; align-items: center;
+.mission-card {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px;
 }
-.mission-icon { font-size: 22px; color: var(--accent); }
+.mission-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mission-icon { font-size: 24px; color: var(--accent); }
 .mission-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mission-info b { font-size: 13px; }
 .mission-desc { font-size: 11px; color: var(--ink-dim); }
-.mission-out { font-size: 12px; color: var(--ink); white-space: nowrap; }
-.mission-out.muted { color: var(--ink-dim); }
-.mission-assign { display: flex; align-items: center; gap: 8px; }
-.mission-assign .m-count { font-size: 14px; font-weight: 600; min-width: 16px; text-align: center; }
-.mission-assign button {
-  width: 26px; height: 26px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 16px; line-height: 1;
+
+.mission-body { display: flex; align-items: center; justify-content: flex-end; }
+.mission-body button {
   background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; padding: 6px 12px;
 }
-.mission-assign button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.mission-assign button:disabled { opacity: 0.3; cursor: default; }
+.mission-body button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.mission-body button:disabled { opacity: 0.35; cursor: default; }
+.m-launch { border-color: #2d4a5e !important; color: var(--accent) !important; }
+
+.m-preview, .m-active { display: flex; align-items: center; gap: 10px; }
+.m-team { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.m-stat { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.m-adjust, .m-acts { display: flex; gap: 4px; }
+.m-adjust button { width: 24px; padding: 4px 0; text-align: center; font-size: 15px; line-height: 1; }
+.m-prog { width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.m-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.m-left { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+
+/* zones */
+.zones-panel { margin-top: 14px; }
+.zone-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.zone {
+  display: flex; flex-direction: column; gap: 2px; background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; min-width: 120px;
+}
+.zone b { font-size: 12px; }
+.zone-kind { font-size: 11px; color: var(--accent); }
 
 .title {
   display: flex;

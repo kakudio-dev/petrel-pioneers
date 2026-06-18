@@ -7,7 +7,7 @@ export type StaffStatus = 'staffed' | 'understaffed' | 'starved' | 'online';
 
 /** What a crew member is doing. 'building' = part of the labour pool that staffs
  *  buildings (the default). Others take them off that pool. */
-export type CrewTask = 'building' | 'gatherOre' | 'gatherFood' | 'construction' | 'expand' | 'idle';
+export type CrewTask = 'building' | 'explore' | 'gatherFood' | 'construction' | 'expand' | 'idle';
 
 export interface CrewMember {
   id: number;
@@ -15,6 +15,13 @@ export interface CrewMember {
   /** Placeholder stats (0..10) — surfaced in the UI, no sim effect yet. */
   stats: { vigor: number; tech: number; grit: number };
   task: CrewTask;
+}
+
+/** A region discovered by Explore missions. Later, other missions run in zones. */
+export interface Zone {
+  id: number;
+  name: string;
+  kind: string; // flavour / hint at what missions it'll support (placeholder)
 }
 
 /** A building under construction, fully operational, or being torn down. Only

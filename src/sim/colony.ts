@@ -6,8 +6,13 @@ import type {
   CrewTask,
   Flows,
   StaffStatus,
+  Zone,
 } from './types';
 import * as C from './config';
+
+/** Mission types that actually run (expand is a UI stub for now). */
+export type MissionType = 'explore' | 'gatherFood';
+const MISSION_TYPES: MissionType[] = ['explore', 'gatherFood'];
 
 let nextId = 1;
 const genId = () => nextId++;
@@ -36,6 +41,13 @@ export class Colony {
   // --- Crew (a roster of named individuals, not a number) ---
   crew: CrewMember[] = [];
   private starveTimer = 0;
+
+  // --- Missions & discovered zones ---
+  zones: Zone[] = [];
+  missions: Record<MissionType, { active: boolean; elapsed: number }> = {
+    explore: { active: false, elapsed: 0 },
+    gatherFood: { active: false, elapsed: 0 },
+  };
 
   // --- Space ---
   slotCap = C.SLOT_CAP_START;
@@ -103,6 +115,64 @@ export class Colony {
     c.task = 'building';
     return true;
   }
+
+  // --- Missions ---
+  get zonesRemaining(): boolean {
+    return this.zones.length < C.ZONE_NAMES.length;
+  }
+  /** Seconds the mission will take, given its current team. */
+  missionDuration(type: MissionType): number {
+    const team = Math.max(1, this.crewOnTask(type));
+    return type === 'explore' ? C.EXPLORE_TIME / team : C.GATHER_TIME;
+  }
+  /** Auto-assemble a team from available crew. */
+  prepareMission(type: MissionType): void {
+    if (this.missions[type].active) return;
+    while (this.crewOnTask(type) < C.MISSION_TEAM && this.assignCrewTo(type)) {
+      /* keep pulling */
+    }
+  }
+  launchMission(type: MissionType): void {
+    const m = this.missions[type];
+    if (!m.active && this.crewOnTask(type) > 0) {
+      m.active = true;
+      m.elapsed = 0;
+    }
+  }
+  /** Recall the team and stand the mission down (no reward). */
+  cancelMission(type: MissionType): void {
+    for (const c of this.crew) if (c.task === type) c.task = 'building';
+    this.missions[type].active = false;
+    this.missions[type].elapsed = 0;
+  }
+
+  private discoverZone(): void {
+    if (!this.zonesRemaining) return;
+    const name = C.ZONE_NAMES[this.zones.length];
+    const kind = C.ZONE_KINDS[Math.floor(Math.random() * C.ZONE_KINDS.length)];
+    this.zones.push({ id: genId(), name, kind });
+  }
+
+  private processMissions(dt: number): void {
+    for (const type of MISSION_TYPES) {
+      const m = this.missions[type];
+      if (!m.active) continue;
+      const team = this.crewOnTask(type);
+      if (team === 0) {
+        m.active = false;
+        m.elapsed = 0;
+        continue;
+      }
+      m.elapsed += dt;
+      if (m.elapsed >= this.missionDuration(type)) {
+        if (type === 'explore') this.discoverZone();
+        else this.food = Math.min(this.foodCap, this.food + team * C.FOOD_BATCH);
+        for (const c of this.crew) if (c.task === type) c.task = 'building';
+        m.active = false;
+        m.elapsed = 0;
+      }
+    }
+  }
   get expandCost(): number {
     return Math.round(C.EXPAND_BASE_COST * C.EXPAND_COST_GROWTH ** this.expandCount);
   }
@@ -167,6 +237,7 @@ export class Colony {
     this.elapsed += dt;
 
     this.processProjects(dt);
+    this.processMissions(dt);
 
     const f = emptyFlows();
     const energyBefore = this.E;
@@ -220,9 +291,9 @@ export class Colony {
       }
     }
 
-    // 4. Food larder: greenhouses grow it (per-building power & staffing), plus any
-    //    crew on a gather-food mission. All crew eat, whatever their task.
-    let foodProduction = this.crewOnTask('gatherFood') * C.FOOD_GATHER_RATE;
+    // 4. Food larder: greenhouses grow it (per-building power & staffing). Gather-food
+    //    missions deliver food in batches on completion, not continuously.
+    let foodProduction = 0;
     for (const b of active) {
       const base = C.FOOD_PRODUCTION[b.type];
       if (base === 0) continue;
@@ -261,9 +332,8 @@ export class Colony {
     }
     if (this.crew.length === 0) this.failed = true;
 
-    // 7. Iron from extractors (staffing × its power) plus any gather-ore crew,
-    //    capped by the stockpile.
-    let ironProduced = this.crewOnTask('gatherOre') * C.ORE_GATHER_RATE;
+    // 7. Iron from extractors (staffing × its power), capped by the stockpile.
+    let ironProduced = 0;
     for (const b of active) {
       if (b.type === 'extractor') ironProduced += C.EXTRACTOR_OUTPUT * b.staffing * b.powerLevel;
     }

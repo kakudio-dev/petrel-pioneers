@@ -169,16 +169,16 @@ export class Colony {
   }
 
   /** Applied once each time the colony enters a new season: every zone's food abundance
-   *  grows by a fraction of its fertility ceiling (spring/summer) or decays by a fraction
-   *  of its current level (autumn/winter), bounded by the fertility ceiling. Ore abundance
-   *  is untouched — it only moves on gather runs. */
+   *  grows by a fraction of its fertility score (spring/summer) or decays by a fraction of
+   *  its current level (autumn/winter). No upper cap — Wane/Dark decay settles it into a
+   *  steady seasonal swing. Ore abundance is untouched — it only moves on gather runs. */
   private applySeasonChange(idx: number): void {
-    const growth = C.SEASON_FOOD_GROWTH[idx]; // fraction of the fertility ceiling added
+    const growth = C.SEASON_FOOD_GROWTH[idx]; // fraction of the fertility score added
     const decay = C.SEASON_FOOD_DECAY[idx]; // fraction of current food abundance removed
     for (const z of this.zones) {
-      const max = Math.round(z.fertility * C.MAX_ABUNDANCE);
-      const food = (z.foodAbundance + growth * max) * (1 - decay);
-      z.foodAbundance = clamp(Math.round(food), 0, max);
+      const fertScore = z.fertility * C.MAX_ABUNDANCE;
+      const food = (z.foodAbundance + growth * fertScore) * (1 - decay);
+      z.foodAbundance = Math.round(food);
     }
   }
 

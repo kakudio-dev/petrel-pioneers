@@ -115,9 +115,10 @@ export const MAX_ABUNDANCE = 100;
 export const GATHER_DEPLETION = 25; // abundance points a zone loses per gather run
 // Food abundance change applied once each time the colony ENTERS a season (index matches
 // SEASONS: Thaw, Highsun, Wane, Dark). Growth ADDS a fraction of the zone's fertility
-// ceiling; decay REMOVES a fraction of current abundance. Ore abundance ignores seasons.
+// score; decay REMOVES a fraction of current abundance. There is no upper cap — the
+// Wane/Dark decay settles food into a steady swing. Ore abundance ignores seasons.
 //   Thaw   +½ fertility   Highsun +1 fertility   Wane −25%   Dark −75%
-export const SEASON_FOOD_GROWTH = [0.5, 1.0, 0, 0]; // fraction of fertility ceiling added
+export const SEASON_FOOD_GROWTH = [0.5, 1.0, 0, 0]; // fraction of fertility score added
 export const SEASON_FOOD_DECAY = [0, 0, 0.25, 0.75]; // fraction of current abundance removed
 
 // --- Zone geology (intrinsic, rolled once when a zone is discovered) ---

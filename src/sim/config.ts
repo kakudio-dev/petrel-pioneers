@@ -99,11 +99,12 @@ export const CREW_REQ: Record<BuildingType, number> = {
   greenhouse: 3,
 };
 
-// --- Missions (discrete expeditions: prepare a team, launch, resolve on finish) ---
-export const MISSION_TEAM = 3; // default crew a "Prepare" assembles
-export const EXPLORE_TIME = 60; // seconds for 1 crew to discover a zone (÷ team size)
-export const GATHER_TIME = 25; // seconds for a food-gathering run
-export const FOOD_BATCH = 25; // food returned per crew on a gather run
+// --- Missions (zone-targeted expeditions: pick a team, launch, resolve on finish) ---
+export const MISSION_CREW = 3; // fixed crew every mission requires
+export const EXPLORE_DURATION = 22; // seconds to discover a new zone
+export const GATHER_DURATION = 26; // seconds for a gather run
+export const GATHER_FOOD_AMOUNT = 80; // food returned by a Gather Food run
+export const GATHER_ORE_AMOUNT = 100; // ore returned by a Gather Resources run
 
 // The home zone — where the command hub sits. The colony starts here.
 export const HOME_ZONE_NAME = 'The Roost';

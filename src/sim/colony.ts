@@ -10,9 +10,17 @@ import type {
 } from './types';
 import * as C from './config';
 
-/** Mission types that actually run (expand is a UI stub for now). */
-export type MissionType = 'explore' | 'gatherFood';
-const MISSION_TYPES: MissionType[] = ['explore', 'gatherFood'];
+export type MissionType = 'explore' | 'gatherFood' | 'gatherResources';
+
+/** A running expedition: a fixed team of crew sent to a zone (explore has none). */
+export interface Mission {
+  id: number;
+  type: MissionType;
+  zoneId: number | null;
+  crewIds: number[];
+  elapsed: number;
+  duration: number;
+}
 
 let nextId = 1;
 const genId = () => nextId++;
@@ -44,10 +52,7 @@ export class Colony {
 
   // --- Missions & discovered zones ---
   zones: Zone[] = [];
-  missions: Record<MissionType, { active: boolean; elapsed: number }> = {
-    explore: { active: false, elapsed: 0 },
-    gatherFood: { active: false, elapsed: 0 },
-  };
+  activeMissions: Mission[] = [];
 
   // --- Space ---
   slotCap = C.SLOT_CAP_START;
@@ -87,34 +92,20 @@ export class Colony {
   get crewCount(): number {
     return this.crew.length;
   }
-  /** Crew in the building-staffing pool (task = 'building'). */
+  /** Crew staffing buildings: task 'building' and not away on a mission. */
   get buildingCrew(): number {
-    return this.crew.filter((c) => c.task === 'building').length;
+    return this.crew.filter((c) => c.task === 'building' && !this.onMission(c.id)).length;
   }
-  crewOnTask(task: CrewTask): number {
-    return this.crew.filter((c) => c.task === task).length;
+  onMission(crewId: number): boolean {
+    return this.activeMissions.some((m) => m.crewIds.includes(crewId));
   }
-  /** Crew free to be deployed on a mission (in the building pool or idle). */
-  get deployableCrew(): number {
-    return this.crew.filter((c) => c.task === 'building' || c.task === 'idle').length;
+  /** Crew at base, free to be sent on a mission. */
+  get availableCrew(): CrewMember[] {
+    return this.crew.filter((c) => !this.onMission(c.id));
   }
   setTask(id: number, task: CrewTask): void {
     const c = this.crew.find((x) => x.id === id);
     if (c) c.task = task;
-  }
-  /** Deploy one available crew member onto a task. Returns false if none free. */
-  assignCrewTo(task: CrewTask): boolean {
-    const c = this.crew.find((x) => x.task === 'building') ?? this.crew.find((x) => x.task === 'idle');
-    if (!c) return false;
-    c.task = task;
-    return true;
-  }
-  /** Recall one crew member from a task back to building work. */
-  unassignCrewFrom(task: CrewTask): boolean {
-    const c = this.crew.find((x) => x.task === task);
-    if (!c) return false;
-    c.task = 'building';
-    return true;
   }
 
   // --- Missions ---
@@ -125,30 +116,25 @@ export class Colony {
   get zonesRemaining(): boolean {
     return this.discoveredCount < C.ZONE_NAMES.length;
   }
-  /** Seconds the mission will take, given its current team. */
   missionDuration(type: MissionType): number {
-    const team = Math.max(1, this.crewOnTask(type));
-    return type === 'explore' ? C.EXPLORE_TIME / team : C.GATHER_TIME;
+    return type === 'explore' ? C.EXPLORE_DURATION : C.GATHER_DURATION;
   }
-  /** Auto-assemble a team from available crew. */
-  prepareMission(type: MissionType): void {
-    if (this.missions[type].active) return;
-    while (this.crewOnTask(type) < C.MISSION_TEAM && this.assignCrewTo(type)) {
-      /* keep pulling */
-    }
+  /** Launch a mission with a fixed team (crew ids) targeting an optional zone. */
+  launchMission(type: MissionType, zoneId: number | null, crewIds: number[]): boolean {
+    if (crewIds.length === 0) return false;
+    this.activeMissions.push({
+      id: genId(),
+      type,
+      zoneId,
+      crewIds: [...crewIds],
+      elapsed: 0,
+      duration: this.missionDuration(type),
+    });
+    return true;
   }
-  launchMission(type: MissionType): void {
-    const m = this.missions[type];
-    if (!m.active && this.crewOnTask(type) > 0) {
-      m.active = true;
-      m.elapsed = 0;
-    }
-  }
-  /** Recall the team and stand the mission down (no reward). */
-  cancelMission(type: MissionType): void {
-    for (const c of this.crew) if (c.task === type) c.task = 'building';
-    this.missions[type].active = false;
-    this.missions[type].elapsed = 0;
+  /** Recall an active mission early — its crew return, no reward. */
+  recallMission(id: number): void {
+    this.activeMissions = this.activeMissions.filter((m) => m.id !== id);
   }
 
   private discoverZone(): void {
@@ -159,24 +145,18 @@ export class Colony {
   }
 
   private processMissions(dt: number): void {
-    for (const type of MISSION_TYPES) {
-      const m = this.missions[type];
-      if (!m.active) continue;
-      const team = this.crewOnTask(type);
-      if (team === 0) {
-        m.active = false;
-        m.elapsed = 0;
-        continue;
-      }
+    const done: number[] = [];
+    for (const m of this.activeMissions) {
       m.elapsed += dt;
-      if (m.elapsed >= this.missionDuration(type)) {
-        if (type === 'explore') this.discoverZone();
-        else this.food = Math.min(this.foodCap, this.food + team * C.FOOD_BATCH);
-        for (const c of this.crew) if (c.task === type) c.task = 'building';
-        m.active = false;
-        m.elapsed = 0;
+      if (m.elapsed >= m.duration) {
+        if (m.type === 'explore') this.discoverZone();
+        else if (m.type === 'gatherFood')
+          this.food = Math.min(this.foodCap, this.food + C.GATHER_FOOD_AMOUNT);
+        else this.iron = Math.min(this.ironCap, this.iron + C.GATHER_ORE_AMOUNT);
+        done.push(m.id);
       }
     }
+    if (done.length) this.activeMissions = this.activeMissions.filter((m) => !done.includes(m.id));
   }
   get expandCost(): number {
     return Math.round(C.EXPAND_BASE_COST * C.EXPAND_COST_GROWTH ** this.expandCount);

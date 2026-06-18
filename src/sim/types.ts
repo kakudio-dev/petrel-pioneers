@@ -5,9 +5,9 @@ export type BuildingType = 'command' | 'generator' | 'extractor' | 'habitat' | '
 
 export type StaffStatus = 'staffed' | 'understaffed' | 'starved' | 'online';
 
-/** What a crew member is doing. 'building' = part of the labour pool that staffs
- *  buildings (the default). Others take them off that pool. */
-export type CrewTask = 'building' | 'explore' | 'gatherFood' | 'construction' | 'expand' | 'idle';
+/** A crew member's at-base assignment. 'building' = staffs buildings (the default);
+ *  'idle' = off duty. Being away on a mission is tracked on the mission, not here. */
+export type CrewTask = 'building' | 'idle';
 
 export interface CrewMember {
   id: number;

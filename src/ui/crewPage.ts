@@ -3,18 +3,10 @@ import type { CrewMember, CrewTask } from '../sim/types';
 
 const TASKS: { value: CrewTask; label: string }[] = [
   { value: 'building', label: 'Work in Buildings' },
-  { value: 'explore', label: 'Explore' },
-  { value: 'gatherFood', label: 'Gather Food' },
-  { value: 'construction', label: 'Construction' },
-  { value: 'expand', label: 'Expand Base' },
   { value: 'idle', label: 'Idle' },
 ];
 const STATUS: Record<CrewTask, string> = {
   building: 'On shift',
-  explore: 'Exploring',
-  gatherFood: 'Gathering food',
-  construction: 'On construction',
-  expand: 'Surveying',
   idle: 'Idle',
 };
 const STATS: { key: keyof CrewMember['stats']; label: string }[] = [
@@ -45,10 +37,10 @@ export function createCrewPage(colony: Colony) {
   const rows = new Map<number, CrewRow>();
 
   function update() {
-    const onShift = colony.crewOnTask('building');
-    const onMission = colony.crewCount - onShift - colony.crewOnTask('idle');
-    const idle = colony.crewOnTask('idle');
-    summary.textContent = `· ${colony.crewCount} aboard — ${onShift} on shift, ${onMission} on missions, ${idle} idle`;
+    const away = colony.crew.filter((c) => colony.onMission(c.id)).length;
+    const onShift = colony.buildingCrew;
+    const idle = colony.crewCount - away - onShift;
+    summary.textContent = `· ${colony.crewCount} aboard — ${onShift} on shift, ${away} on missions, ${idle} idle`;
 
     const present = new Set<number>();
     for (const c of colony.crew) {
@@ -59,9 +51,11 @@ export function createCrewPage(colony: Colony) {
         rows.set(c.id, row);
         list.appendChild(row.el);
       }
-      if (row.select.value !== c.task) row.select.value = c.task;
-      row.status.textContent = STATUS[c.task];
-      row.status.className = `crew-status task-${c.task}`;
+      const away = colony.onMission(c.id);
+      row.select.disabled = away;
+      if (!away && row.select.value !== c.task) row.select.value = c.task;
+      row.status.textContent = away ? 'On mission' : STATUS[c.task];
+      row.status.className = `crew-status ${away ? 'task-mission' : 'task-' + c.task}`;
     }
     for (const [id, row] of rows) {
       if (!present.has(id)) {

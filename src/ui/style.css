@@ -96,55 +96,61 @@ body {
 .crew-status.task-expand { color: var(--accent); }
 
 /* missions page */
-.mission-summary, .zone-count { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
-.mission-list { display: flex; flex-direction: column; gap: 8px; }
-.mission-card {
-  display: flex; flex-direction: column; gap: 10px;
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px;
-}
-.mission-head { display: flex; align-items: center; gap: 12px; }
-.mission-icon { font-size: 24px; color: var(--accent); }
-.mission-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.mission-info b { font-size: 13px; }
-.mission-desc { font-size: 11px; color: var(--ink-dim); }
+.active-count, .zone-count { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
+.panel + .panel { margin-top: 14px; }
+.mission-icon { font-size: 22px; color: var(--accent); }
+.mission-desc { font-size: 11px; color: var(--ink-dim); font-weight: 400; }
 
-.mission-card button {
-  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+/* shared mission buttons */
+.active-list button, .setup-body button, .explore-btn {
+  background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
   border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; padding: 6px 12px;
 }
-.mission-card button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.mission-card button:disabled { opacity: 0.35; cursor: default; }
-.m-launch { border-color: #2d4a5e; color: var(--accent); }
+.active-list button:hover:not(:disabled), .setup-body button:hover:not(:disabled),
+.explore-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.active-list button:disabled, .setup-body button:disabled, .explore-btn:disabled { opacity: 0.35; cursor: default; }
+.explore-btn { float: right; margin-top: -4px; text-transform: none; letter-spacing: 0; }
+.setup-launch { border-color: #2d4a5e !important; color: var(--accent) !important; }
 
-/* expanded section: who's going + controls */
-.m-expand { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
-.m-team { display: flex; flex-wrap: wrap; gap: 6px; }
-.team-chip {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 3px 12px 3px 3px;
+/* active missions */
+.active-list { display: flex; flex-direction: column; gap: 8px; }
+.amission { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; }
+.amission-head { display: flex; align-items: center; gap: 12px; }
+.amission-name { flex: 1; min-width: 0; font-size: 13px; }
+.amission .m-prog { width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.amission .m-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.amission .m-left { font-size: 12px; color: var(--ink-dim); white-space: nowrap; min-width: 28px; }
+
+/* crew rows (missions setup + active) */
+.mcrew-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.mcrew-row {
+  display: grid; grid-template-columns: 26px minmax(60px, 1fr) auto auto; gap: 12px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12px;
 }
-.team-av {
-  width: 20px; height: 20px; border-radius: 50%; background: #1f2a36;
-  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;
-}
-.m-preview-row, .m-active-row { display: flex; align-items: center; gap: 10px; }
-.m-stat { font-size: 12px; color: var(--ink-dim); }
-.m-adjust { display: flex; gap: 4px; margin-left: auto; }
-.m-adjust button { width: 26px; padding: 5px 0; text-align: center; font-size: 15px; line-height: 1; }
-.m-prog { flex: 1; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
-.m-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
-.m-left { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.mcrew-row.selectable { cursor: pointer; }
+.mcrew-row.selectable:hover { border-color: var(--accent); }
+.mcrew-row.selected { border-color: var(--accent); background: #16242f; }
+.mcrew-pick { font-size: 11px; color: var(--ink-dim); }
+.mcrew-row.selected .mcrew-pick { color: var(--accent); }
+
+/* setup panel */
+.setup-types { display: flex; align-items: center; gap: 10px; }
+.setup-label { font-size: 12px; color: var(--ink-dim); }
+.setup-pick { font-size: 12px; color: var(--ink-dim); }
+.setup-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.setup-preview { font-size: 12px; color: var(--ink-dim); margin-right: auto; }
 
 /* zones */
-.zones-panel { margin-top: 14px; }
-.zone-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.zone-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .zone {
   display: flex; flex-direction: column; gap: 2px; background: var(--panel-2);
-  border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; min-width: 120px;
+  border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; min-width: 130px; position: relative;
 }
+.zone.clickable { cursor: pointer; }
+.zone.clickable:hover { border-color: var(--accent); }
 .zone b { font-size: 12px; }
 .zone-kind { font-size: 11px; color: var(--accent); }
-.zone.home { border-color: #2d4a5e; background: #14202b; position: relative; }
+.zone.home { border-color: #2d4a5e; background: #14202b; }
 .zone.home .zone-kind { color: var(--ink-dim); }
 .zone-tag {
   position: absolute; top: 8px; right: 10px; font-size: 9px; font-weight: 600; letter-spacing: 0.5px;

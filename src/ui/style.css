@@ -59,6 +59,14 @@ body {
 .tab:hover { color: var(--ink); }
 .tab.active { color: var(--ink); border-bottom-color: var(--accent); }
 .topbar .clockbar { margin-left: auto; }
+.clock { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.season-ring { width: 16px; height: 16px; display: block; }
+.season-ring .ring-bg { fill: none; stroke: var(--line); stroke-width: 4; }
+.season-ring .ring-fg {
+  fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round;
+  stroke-dasharray: 94.248; transform: rotate(-90deg); transform-box: fill-box; transform-origin: center;
+  transition: stroke-dashoffset 0.12s linear;
+}
 
 /* sidebar + main */
 .layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: 16px; align-items: start; }

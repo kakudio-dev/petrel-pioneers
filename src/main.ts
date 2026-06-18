@@ -38,7 +38,13 @@ topbar.innerHTML = `
     ${PAGES.map((p) => `<button class="tab" data-tab="${p.id}">${p.label}</button>`).join('')}
   </div>
   <div class="clockbar">
-    <span class="clock">0:00</span>
+    <span class="clock">
+      <span class="season-label"></span>
+      <svg class="season-ring" viewBox="0 0 36 36">
+        <circle class="ring-bg" cx="18" cy="18" r="15"></circle>
+        <circle class="ring-fg" cx="18" cy="18" r="15"></circle>
+      </svg>
+    </span>
     <button data-speed="0"><span class="msym">pause</span></button>
     <button data-speed="1">1×</button>
     <button data-speed="5">5×</button>
@@ -78,7 +84,9 @@ app.appendChild(topbar);
 app.appendChild(layout);
 app.appendChild(overlay);
 
-const clockEl = topbar.querySelector('.clock') as HTMLElement;
+const seasonLabel = topbar.querySelector('.season-label') as HTMLElement;
+const ringFg = topbar.querySelector('.ring-fg') as SVGCircleElement;
+const RING_C = 2 * Math.PI * 15; // ring circumference (r=15)
 const speedBtns = Array.from(topbar.querySelectorAll('button[data-speed]')) as HTMLButtonElement[];
 const tabBtns = Array.from(topbar.querySelectorAll('.tab')) as HTMLButtonElement[];
 
@@ -122,13 +130,14 @@ function render() {
   if (famine) banner.innerHTML = FAMINE_MSG;
   banner.classList.toggle('show', famine);
   overlay.classList.toggle('show', colony.failed);
-  // Clock runs in seasons (~1 min each), 4 to a year.
+  // Clock runs in seasons (~1 min each), 4 to a year — shown as a fill ring.
   const t = colony.elapsed;
   const yearLen = SEASON_LENGTH * SEASONS.length;
   const year = Math.floor(t / yearLen) + 1;
   const season = SEASONS[Math.floor(t / SEASON_LENGTH) % SEASONS.length];
-  const into = Math.floor(t % SEASON_LENGTH);
-  clockEl.textContent = `Y${year} · ${season} ${Math.floor(into / 60)}:${String(into % 60).padStart(2, '0')}`;
+  const progress = (t % SEASON_LENGTH) / SEASON_LENGTH;
+  seasonLabel.textContent = `Y${year} · ${season}`;
+  ringFg.style.strokeDashoffset = String(RING_C * (1 - progress));
 }
 
 loop.start();

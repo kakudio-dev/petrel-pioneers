@@ -154,10 +154,11 @@ export function createBuildingsPanel(colony: Colony) {
   return { el, update };
 }
 
-// One icon pip per unit needed; FILL/colour (set in updateRow) shows what's supplied.
+// One box per unit needed, with an icon inside; the box state (set in updateRow)
+// shows what's supplying that unit (empty box = unmet).
 function pipsMeter(kind: string, iconName: string, count: number): string {
   let pips = '';
-  for (let i = 0; i < count; i++) pips += `<span class="msym pip">${iconName}</span>`;
+  for (let i = 0; i < count; i++) pips += `<span class="pipbox"><span class="msym pic">${iconName}</span></span>`;
   return `<span class="meter" title="${kind === 'pwr' ? 'power' : 'workers'}"><span class="pips ${kind}">${pips}</span></span>`;
 }
 function chip(text: string): string {
@@ -213,8 +214,8 @@ function createRow(colony: Colony, b: Building): Row {
     state: b.state,
     status: el.querySelector('.status') as HTMLElement,
     fill: el.querySelector('.bprogress .fill') as HTMLElement | null,
-    pwrBlocks: Array.from(el.querySelectorAll('.pips.pwr .pip')) as HTMLElement[],
-    crewBlocks: Array.from(el.querySelectorAll('.pips.crew .pip')) as HTMLElement[],
+    pwrBlocks: Array.from(el.querySelectorAll('.pips.pwr .pipbox')) as HTMLElement[],
+    crewBlocks: Array.from(el.querySelectorAll('.pips.crew .pipbox')) as HTMLElement[],
     up: el.querySelector('.up') as HTMLButtonElement | null,
     down: el.querySelector('.down') as HTMLButtonElement | null,
   };
@@ -242,15 +243,15 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
   const consumes = ENERGY_DRAW[b.type] > 0;
   const genBlocks = Math.round(b.genPower);
   const litBlocks = Math.round(b.genPower + b.batPower);
-  row.pwrBlocks.forEach((pip, i) => {
-    if (i < genBlocks) pip.className = 'msym pip gen';
-    else if (i < litBlocks) pip.className = 'msym pip bat';
-    else pip.className = 'msym pip';
+  row.pwrBlocks.forEach((box, i) => {
+    if (i < genBlocks) box.className = 'pipbox gen';
+    else if (i < litBlocks) box.className = 'pipbox bat';
+    else box.className = 'pipbox';
   });
-  // Worker pips fill to the crew staffing this building.
+  // Worker boxes fill to the crew staffing this building.
   const crewFilled = Math.round(b.staffing * row.crewBlocks.length);
-  row.crewBlocks.forEach((pip, i) => {
-    pip.className = i < crewFilled ? 'msym pip on' : 'msym pip';
+  row.crewBlocks.forEach((box, i) => {
+    box.className = i < crewFilled ? 'pipbox on' : 'pipbox';
   });
 
   // power-status accent: how far the power reaches (every standing consumer)

@@ -160,12 +160,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .arrows .msym { font-size: 15px; }
 .banner .msym { vertical-align: -3px; }
 
-/* per-row power & worker pips — icons whose FILL axis shows supplied vs needed */
-.pips { display: inline-flex; gap: 1px; align-items: center; }
-.pip { font-size: 15px; color: #3a4856; font-variation-settings: 'FILL' 0; } /* needed, unmet */
-.pips.pwr .pip.gen { color: var(--energy); font-variation-settings: 'FILL' 1; } /* on live generation */
-.pips.pwr .pip.bat { color: var(--energy); font-variation-settings: 'FILL' 0; } /* on battery (outline) */
-.pips.crew .pip.on { color: var(--accent); font-variation-settings: 'FILL' 1; } /* staffed */
+/* per-row power & worker pips — a box per unit required, with an icon inside whose
+   presence/FILL shows what's supplying it (empty box = needed but unmet) */
+.pips { display: inline-flex; gap: 3px; align-items: center; }
+.pipbox {
+  width: 15px; height: 15px; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px #33414f;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.pipbox .pic { font-size: 12px; line-height: 1; color: transparent; font-variation-settings: 'FILL' 0; }
+.pips.pwr .pipbox.gen .pic { color: var(--energy); font-variation-settings: 'FILL' 1; } /* live generation */
+.pips.pwr .pipbox.bat .pic { color: var(--energy); font-variation-settings: 'FILL' 0; } /* on battery (outline) */
+.pips.crew .pipbox.on .pic { color: var(--accent); font-variation-settings: 'FILL' 1; } /* staffed */
 
 /* population blocks stay squares (the count grows large) */
 .blocks { display: inline-flex; gap: 2px; }

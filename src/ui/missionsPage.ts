@@ -62,7 +62,7 @@ export function createMissionsPage(colony: Colony) {
       <div class="mission-list"></div>
     </div>
     <div class="panel zones-panel">
-      <h2>Discovered Zones <span class="zone-count"></span></h2>
+      <h2>Zones <span class="zone-count"></span></h2>
       <div class="zone-list"></div>
     </div>`;
 
@@ -170,16 +170,16 @@ export function createMissionsPage(colony: Colony) {
       }
     }
 
-    // zones
+    // zones — the home (command hub) zone is always present and badged
     zoneCount.textContent = `(${colony.zones.length})`;
     if (colony.zones.length !== zoneShown) {
       zoneShown = colony.zones.length;
-      zoneList.innerHTML =
-        colony.zones.length === 0
-          ? '<div class="empty">No zones discovered yet — run an Explore mission.</div>'
-          : colony.zones
-              .map((z) => `<div class="zone"><b>${z.name}</b><span class="zone-kind">${z.kind}</span></div>`)
-              .join('');
+      zoneList.innerHTML = colony.zones
+        .map(
+          (z) =>
+            `<div class="zone${z.home ? ' home' : ''}"><b>${z.name}</b><span class="zone-kind">${z.kind}</span>${z.home ? '<span class="zone-tag">HUB</span>' : ''}</div>`,
+        )
+        .join('');
     }
   }
 

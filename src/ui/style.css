@@ -144,6 +144,12 @@ body {
 }
 .zone b { font-size: 12px; }
 .zone-kind { font-size: 11px; color: var(--accent); }
+.zone.home { border-color: #2d4a5e; background: #14202b; position: relative; }
+.zone.home .zone-kind { color: var(--ink-dim); }
+.zone-tag {
+  position: absolute; top: 8px; right: 10px; font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
+  color: var(--bg); background: var(--accent); border-radius: 4px; padding: 1px 5px;
+}
 
 .title {
   display: flex;

@@ -105,6 +105,10 @@ export const EXPLORE_TIME = 60; // seconds for 1 crew to discover a zone (÷ tea
 export const GATHER_TIME = 25; // seconds for a food-gathering run
 export const FOOD_BATCH = 25; // food returned per crew on a gather run
 
+// The home zone — where the command hub sits. The colony starts here.
+export const HOME_ZONE_NAME = 'The Roost';
+export const HOME_ZONE_KIND = 'Command Hub';
+
 // Discovered-zone flavour (names used in order; kinds picked at random).
 export const ZONE_NAMES = [
   'North Ridge', 'Black Flats', 'The Rift', 'Cinder Basin', 'Pale Hollow',

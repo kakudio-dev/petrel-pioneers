@@ -17,11 +17,13 @@ export interface CrewMember {
   task: CrewTask;
 }
 
-/** A region discovered by Explore missions. Later, other missions run in zones. */
+/** A region discovered by Explore missions. Later, other missions run in zones.
+ *  The colony starts in one home zone (where the command hub sits). */
 export interface Zone {
   id: number;
   name: string;
   kind: string; // flavour / hint at what missions it'll support (placeholder)
+  home?: boolean; // the command hub's zone
 }
 
 /** A building under construction, fully operational, or being torn down. Only

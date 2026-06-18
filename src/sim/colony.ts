@@ -62,6 +62,7 @@ export class Colony {
   constructor() {
     this.buildings.push(makeBuilding('command', 'active'));
     for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i));
+    this.zones.push({ id: genId(), name: C.HOME_ZONE_NAME, kind: C.HOME_ZONE_KIND, home: true });
   }
 
   // --- Derived getters ---
@@ -117,8 +118,12 @@ export class Colony {
   }
 
   // --- Missions ---
+  /** Discovered (non-home) zones. */
+  get discoveredCount(): number {
+    return this.zones.filter((z) => !z.home).length;
+  }
   get zonesRemaining(): boolean {
-    return this.zones.length < C.ZONE_NAMES.length;
+    return this.discoveredCount < C.ZONE_NAMES.length;
   }
   /** Seconds the mission will take, given its current team. */
   missionDuration(type: MissionType): number {
@@ -148,7 +153,7 @@ export class Colony {
 
   private discoverZone(): void {
     if (!this.zonesRemaining) return;
-    const name = C.ZONE_NAMES[this.zones.length];
+    const name = C.ZONE_NAMES[this.discoveredCount];
     const kind = C.ZONE_KINDS[Math.floor(Math.random() * C.ZONE_KINDS.length)];
     this.zones.push({ id: genId(), name, kind });
   }

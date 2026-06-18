@@ -26,7 +26,7 @@ const PAGES = [
   { id: 'crew', label: 'Crew', page: crew },
   { id: 'buildings', label: 'Buildings', page: buildings },
 ];
-let activeId = 'crew';
+let activeId = 'missions';
 
 // --- Top bar: brand, tabs, clock ---
 const topbar = document.createElement('div');

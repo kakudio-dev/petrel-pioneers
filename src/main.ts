@@ -4,6 +4,7 @@ import { TickLoop } from './sim/tickLoop';
 import { createStocksPanel } from './ui/stocksPanel';
 import { createBuildingsPanel } from './ui/buildingsPanel';
 import { createCrewPage } from './ui/crewPage';
+import { createMissionsPage } from './ui/missionsPage';
 import { createSummaryPage } from './ui/summaryPage';
 
 const app = document.getElementById('app')!;
@@ -16,11 +17,13 @@ const colony = new Colony();
 const stocks = createStocksPanel();
 const summary = createSummaryPage();
 const crew = createCrewPage(colony);
+const missions = createMissionsPage(colony);
 const buildings = createBuildingsPanel(colony);
 
 const PAGES = [
   { id: 'summary', label: 'Summary', page: summary },
   { id: 'crew', label: 'Crew', page: crew },
+  { id: 'missions', label: 'Missions', page: missions },
   { id: 'buildings', label: 'Buildings', page: buildings },
 ];
 let activeId = 'crew';

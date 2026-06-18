@@ -81,9 +81,27 @@ export class Colony {
   crewOnTask(task: CrewTask): number {
     return this.crew.filter((c) => c.task === task).length;
   }
+  /** Crew free to be deployed on a mission (in the building pool or idle). */
+  get deployableCrew(): number {
+    return this.crew.filter((c) => c.task === 'building' || c.task === 'idle').length;
+  }
   setTask(id: number, task: CrewTask): void {
     const c = this.crew.find((x) => x.id === id);
     if (c) c.task = task;
+  }
+  /** Deploy one available crew member onto a task. Returns false if none free. */
+  assignCrewTo(task: CrewTask): boolean {
+    const c = this.crew.find((x) => x.task === 'building') ?? this.crew.find((x) => x.task === 'idle');
+    if (!c) return false;
+    c.task = task;
+    return true;
+  }
+  /** Recall one crew member from a task back to building work. */
+  unassignCrewFrom(task: CrewTask): boolean {
+    const c = this.crew.find((x) => x.task === task);
+    if (!c) return false;
+    c.task = 'building';
+    return true;
   }
   get expandCost(): number {
     return Math.round(C.EXPAND_BASE_COST * C.EXPAND_COST_GROWTH ** this.expandCount);

@@ -102,14 +102,14 @@ body {
 .mission-desc { font-size: 11px; color: var(--ink-dim); font-weight: 400; }
 
 /* shared mission buttons */
-.active-list button, .setup-body button, .explore-btn {
+.active-list button, .zone-list button {
   background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
   border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; padding: 6px 12px;
 }
-.active-list button:hover:not(:disabled), .setup-body button:hover:not(:disabled),
-.explore-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.active-list button:disabled, .setup-body button:disabled, .explore-btn:disabled { opacity: 0.35; cursor: default; }
-.explore-btn { float: right; margin-top: -4px; text-transform: none; letter-spacing: 0; }
+.active-list button:hover:not(:disabled), .zone-list button:hover:not(:disabled) {
+  border-color: var(--accent); color: var(--accent);
+}
+.active-list button:disabled, .zone-list button:disabled { opacity: 0.35; cursor: default; }
 .setup-launch { border-color: #2d4a5e !important; color: var(--accent) !important; }
 
 /* active missions */
@@ -133,27 +133,29 @@ body {
 .mcrew-pick { font-size: 11px; color: var(--ink-dim); }
 .mcrew-row.selected .mcrew-pick { color: var(--accent); }
 
-/* setup panel */
-.setup-types { display: flex; align-items: center; gap: 10px; }
-.setup-label { font-size: 12px; color: var(--ink-dim); }
-.setup-pick { font-size: 12px; color: var(--ink-dim); }
+/* setup (inside an expanded zone row) */
+.setup-types { display: flex; align-items: center; gap: 8px; }
+.setup-types .mt.active { border-color: var(--accent); color: var(--accent); background: #16242f; }
+.setup-pick { font-size: 12px; color: var(--ink-dim); margin-top: 10px; }
 .setup-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .setup-preview { font-size: 12px; color: var(--ink-dim); margin-right: auto; }
 
-/* zones */
-.zone-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-.zone {
-  display: flex; flex-direction: column; gap: 2px; background: var(--panel-2);
-  border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; min-width: 130px; position: relative;
-}
-.zone.clickable { cursor: pointer; }
-.zone.clickable:hover { border-color: var(--accent); }
-.zone b { font-size: 12px; }
-.zone-kind { font-size: 11px; color: var(--accent); }
-.zone.home { border-color: #2d4a5e; background: #14202b; }
-.zone.home .zone-kind { color: var(--ink-dim); }
+/* zones — full-width expandable rows */
+.zone-list { display: flex; flex-direction: column; gap: 8px; }
+.zrow { background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; }
+.zrow.open { border-color: #2d4a5e; }
+.zrow-head { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.zrow-head.clickable { cursor: pointer; }
+.zrow-head.clickable:hover { background: rgba(255, 255, 255, 0.02); }
+.zrow-icon { font-size: 20px; color: var(--accent); }
+.zrow-name { flex: 1; min-width: 0; font-size: 13px; }
+.zrow-chev { color: var(--ink-dim); font-size: 20px; }
+.zrow.explore { border-style: dashed; }
+.zrow.home { border-color: #2d4a5e; background: #14202b; }
+.zrow.home .mission-desc { color: var(--ink-dim); }
+.zrow-body { padding: 0 12px 12px; border-top: 1px solid var(--line); margin-top: -1px; padding-top: 12px; }
 .zone-tag {
-  position: absolute; top: 8px; right: 10px; font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.5px;
   color: var(--bg); background: var(--accent); border-radius: 4px; padding: 1px 5px;
 }
 

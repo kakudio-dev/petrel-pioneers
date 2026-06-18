@@ -508,8 +508,18 @@ function emptyFlows(): Flows {
 }
 
 function makeZone(name: string, kind: string, home = false): Zone {
-  const fertility = home ? C.HOME_FERTILITY : rollRange(C.FERTILITY_RANGE);
-  const oreRichness = home ? C.HOME_ORE_RICHNESS : rollRange(C.ORE_RICHNESS_RANGE);
+  let fertility: number;
+  let oreRichness: number;
+  if (home) {
+    // home zone: roll an integer fertility % in range, ore richness takes the rest (sum = 100)
+    const [lo, hi] = C.HOME_FERTILITY_PCT_RANGE;
+    const pct = lo + Math.floor(Math.random() * (hi - lo + 1));
+    fertility = pct / 100;
+    oreRichness = (100 - pct) / 100;
+  } else {
+    fertility = rollRange(C.FERTILITY_RANGE);
+    oreRichness = rollRange(C.ORE_RICHNESS_RANGE);
+  }
   return {
     id: genId(),
     name,

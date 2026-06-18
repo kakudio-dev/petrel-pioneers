@@ -122,9 +122,10 @@ export const SEASON_FOOD_STEP = [12, 18, -8, -15];
 // Fertility is the food carrying capacity: it caps food abundance, scales how fast
 // food regrows each season, and scales greenhouse output. Ore richness is the same
 // for resources: it caps resource abundance and scales extractor (mine) output.
-// The home zone is full-grade so the starting balance is unchanged.
-export const HOME_FERTILITY = 1.0;
-export const HOME_ORE_RICHNESS = 1.0;
+// The home zone splits 100 points between the two: fertility is rolled in this
+// (inclusive, integer-%) range and ore richness takes the remainder, so a fertile
+// home is ore-poor and vice versa.
+export const HOME_FERTILITY_PCT_RANGE: [number, number] = [40, 60];
 export const FERTILITY_RANGE: [number, number] = [0.3, 1.0]; // [min, max] rolled for discovered zones
 export const ORE_RICHNESS_RANGE: [number, number] = [0.3, 1.0];
 

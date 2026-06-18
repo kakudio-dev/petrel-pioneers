@@ -22,10 +22,11 @@ export interface Mission {
   duration: number;
 }
 
-/** A finished expedition, kept for the recent-missions log. */
+/** A finished expedition, kept for the recent-missions log (and for re-running). */
 export interface CompletedMission {
   id: number;
   type: MissionType;
+  zoneId: number | null; // the original target zone (null for explore) — used to re-run
   zoneName: string; // target zone, or the newly discovered zone for explore
   crew: number;
   amount: number; // food/ore delivered (0 for explore)
@@ -228,7 +229,7 @@ export class Colony {
             zone.resourceAbundance = Math.max(0, Math.round(zone.resourceAbundance - found));
           }
         }
-        this.completedMissions.unshift({ id: m.id, type: m.type, zoneName, crew, amount });
+        this.completedMissions.unshift({ id: m.id, type: m.type, zoneId: m.zoneId, zoneName, crew, amount });
         if (this.completedMissions.length > C.RECENT_MISSIONS) this.completedMissions.pop();
         done.push(m.id);
       }

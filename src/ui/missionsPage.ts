@@ -27,12 +27,12 @@ export function createMissionsPage(colony: Colony) {
       <div class="active-list"></div>
     </div>
     <div class="panel">
-      <h2>Zones <span class="zone-count"></span></h2>
-      <div class="zone-list"></div>
-    </div>
-    <div class="panel">
       <h2>Recent Missions</h2>
       <div class="recent-list"><div class="empty">No completed missions yet.</div></div>
+    </div>
+    <div class="panel">
+      <h2>Zones <span class="zone-count"></span></h2>
+      <div class="zone-list"></div>
     </div>`;
 
   const activeCount = el.querySelector('.active-count') as HTMLElement;
@@ -77,6 +77,28 @@ export function createMissionsPage(colony: Colony) {
     if (teams.has(key)) teams.delete(key);
     else autoFill(key);
     renderZones();
+  }
+
+  // Launch a mission and clear the committed crew from any other pending setups.
+  function commitLaunch(type: MissionType, zoneId: number | null, crewIds: number[]) {
+    if (crewIds.length === 0) return;
+    colony.launchMission(type, zoneId, crewIds);
+    for (const [, t] of teams) for (const id of crewIds) t.delete(id);
+    renderZones();
+  }
+
+  // Can a logged mission be re-run right now? (crew free, and zones left for explore)
+  function canRerun(m: CompletedMission): boolean {
+    if (m.type === 'explore' && !colony.zonesRemaining) return false;
+    return colony.availableCrew.length > 0;
+  }
+
+  // Re-run a logged mission: same type and target zone, with up to the original crew count
+  // drawn from whoever is free now.
+  function rerun(m: CompletedMission) {
+    if (!canRerun(m)) return;
+    const crewIds = colony.availableCrew.slice(0, Math.max(1, m.crew)).map((c) => c.id);
+    commitLaunch(m.type, m.zoneId, crewIds);
   }
 
   function setupHTML(key: string, type: MissionType, zoneId: number | null): string {
@@ -193,11 +215,8 @@ export function createMissionsPage(colony: Colony) {
       launch.addEventListener('click', () => {
         const committed = [...team];
         if (committed.length === 0) return;
-        colony.launchMission(type, zoneId, committed);
         teams.delete(key);
-        // committed crew are now busy — drop them from any other pending teams
-        for (const [, t] of teams) for (const id of committed) t.delete(id);
-        renderZones();
+        commitLaunch(type, zoneId, committed);
       });
     });
   }
@@ -263,14 +282,29 @@ export function createMissionsPage(colony: Colony) {
       if (r) r.textContent = `${Math.round(z.resourceAbundance)}`;
     }
 
-    // recent completed missions (re-render only when the log changes)
-    const rsig = colony.completedMissions.map((m) => m.id).join(',');
+    // recent completed missions — re-render when the log OR re-run availability changes
+    const rsig =
+      colony.completedMissions.map((m) => m.id).join(',') +
+      `|${colony.availableCrew.length}|${colony.zonesRemaining}`;
     if (rsig !== recentSig) {
       recentSig = rsig;
-      recentList.innerHTML = colony.completedMissions.length
-        ? colony.completedMissions.map(recentRowHTML).join('')
-        : '<div class="empty">No completed missions yet.</div>';
+      renderRecent();
     }
+  }
+
+  function renderRecent() {
+    const log = colony.completedMissions;
+    if (!log.length) {
+      recentList.innerHTML = '<div class="empty">No completed missions yet.</div>';
+      return;
+    }
+    recentList.innerHTML = log.map((m, i) => recentRowHTML(m, i, canRerun(m))).join('');
+    recentList.querySelectorAll('.recent-rerun').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const m = colony.completedMissions[Number((btn as HTMLElement).dataset.idx)];
+        if (m) rerun(m);
+      }),
+    );
   }
 
   return { el, update };
@@ -283,7 +317,7 @@ function statsHTML(c: CrewMember): string {
   ).join('');
 }
 
-function recentRowHTML(m: CompletedMission): string {
+function recentRowHTML(m: CompletedMission, idx: number, rerunnable: boolean): string {
   let sub: string;
   let result: string;
   if (m.type === 'explore') {
@@ -297,6 +331,7 @@ function recentRowHTML(m: CompletedMission): string {
     <span class="msym recent-icon">${ICON[m.type]}</span>
     <span class="recent-main"><b>${LABEL[m.type]}</b> <span class="mission-desc">${sub}</span></span>
     <span class="recent-result">${result}</span>
+    <button class="recent-rerun" data-idx="${idx}"${rerunnable ? '' : ' disabled'} title="Run again"><span class="msym">replay</span></button>
   </div>`;
 }
 

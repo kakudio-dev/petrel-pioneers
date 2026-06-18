@@ -1,6 +1,6 @@
 import type { Colony, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
-import { MISSION_CREW, GATHER_FOOD_AMOUNT, GATHER_ORE_AMOUNT } from '../sim/config';
+import { MISSION_CREW } from '../sim/config';
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -43,10 +43,10 @@ export function createMissionsPage(colony: Colony) {
   let zoneSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement }>();
 
-  function rewardText(type: MissionType): string {
+  function rewardText(type: MissionType, zoneId: number | null): string {
     if (type === 'explore') return colony.zonesRemaining ? 'Discover a new zone' : 'Region fully explored';
-    if (type === 'gatherFood') return `+${GATHER_FOOD_AMOUNT} food`;
-    return `+${GATHER_ORE_AMOUNT} ore`;
+    if (type === 'gatherFood') return `+${colony.missionYield('gatherFood', zoneId)} food`;
+    return `+${colony.missionYield('gatherResources', zoneId)} ore`;
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
@@ -85,7 +85,7 @@ export function createMissionsPage(colony: Colony) {
       <div class="setup-pick">Away team — <b>${t.size}/${MISSION_CREW}</b>${short ? ' · not enough crew available' : ' · tap a member to swap'}</div>
       <div class="mcrew-list">${rows || '<div class="empty">No crew available.</div>'}</div>
       <div class="setup-foot">
-        <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type)}</span>
+        <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId)}</span>
         <button class="setup-launch">Launch</button>
       </div>
     </div>`;
@@ -98,7 +98,7 @@ export function createMissionsPage(colony: Colony) {
       <div class="msub-head clickable" data-key="${key}">
         <span class="msym msub-icon">${ICON[type]}</span>
         <span class="msub-name">${LABEL[type]}</span>
-        <span class="avail-reward">${rewardText(type)}</span>
+        <span class="avail-reward">${rewardText(type, zoneId)}</span>
         <span class="msym zrow-chev">${open ? 'expand_less' : 'expand_more'}</span>
       </div>
       ${open ? `<div class="msub-body">${setupHTML(key, type, zoneId)}</div>` : ''}</div>`;
@@ -119,6 +119,10 @@ export function createMissionsPage(colony: Colony) {
         <div class="zrow-head clickable">
           <span class="msym zrow-icon">${z.home ? 'hub' : 'place'}</span>
           <span class="zrow-name"><b>${z.name}</b> <span class="mission-desc">${z.kind}</span></span>
+          <span class="zstats">
+            <span class="zstat" title="Food abundance"><span class="msym">grass</span> <span data-zfood="${z.id}">${Math.round(z.foodAbundance * 100)}%</span></span>
+            <span class="zstat" title="Resource abundance"><span class="msym">terrain</span> <span data-zres="${z.id}">${Math.round(z.resourceAbundance * 100)}%</span></span>
+          </span>
           ${tag}<span class="msym zrow-chev">${zoneOpen ? 'expand_less' : 'expand_more'}</span>
         </div>${body}`;
       row.querySelector('.zrow-head')!.addEventListener('click', () => toggleZone(z.id));
@@ -242,6 +246,13 @@ export function createMissionsPage(colony: Colony) {
     if (zsig !== zoneSig) {
       zoneSig = zsig;
       renderZones();
+    }
+    // live-update abundance % without rebuilding rows (so clicks survive)
+    for (const z of colony.zones) {
+      const f = zoneList.querySelector(`[data-zfood="${z.id}"]`);
+      const r = zoneList.querySelector(`[data-zres="${z.id}"]`);
+      if (f) f.textContent = `${Math.round(z.foodAbundance * 100)}%`;
+      if (r) r.textContent = `${Math.round(z.resourceAbundance * 100)}%`;
     }
   }
 

@@ -107,8 +107,12 @@ export const CREW_REQ: Record<BuildingType, number> = {
 export const MISSION_CREW = 3; // fixed crew every mission requires
 export const EXPLORE_DURATION = 22; // seconds to discover a new zone
 export const GATHER_DURATION = 26; // seconds for a gather run
-export const GATHER_FOOD_AMOUNT = 80; // food returned by a Gather Food run
-export const GATHER_ORE_AMOUNT = 100; // ore returned by a Gather Resources run
+export const GATHER_FOOD_AMOUNT = 80; // food returned by a Gather Food run at full (1.0) abundance
+export const GATHER_ORE_AMOUNT = 100; // ore returned by a Gather Resources run at full abundance
+export const GATHER_DEPLETION = 0.25; // abundance a zone loses per gather run
+export const RESOURCE_REGEN = 0.004; // resource abundance regained per second
+// Food abundance drift per second by season (index matches SEASONS: Thaw, Highsun, Wane, Dark).
+export const SEASON_FOOD_DELTA = [0.006, 0.01, -0.004, -0.008];
 
 // The home zone — where the command hub sits. The colony starts here.
 export const HOME_ZONE_NAME = 'The Roost';

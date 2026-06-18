@@ -186,6 +186,11 @@ body {
 .zrow-name { flex: 1; min-width: 0; font-size: 13px; }
 .zrow-chev { color: var(--ink-dim); font-size: 20px; }
 .avail-reward { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.zstats { display: flex; gap: 12px; flex-shrink: 0; }
+.zstat { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
+.zstat .msym { font-size: 15px; }
+.zstat:first-child .msym { color: #6fcf97; }
+.zstat:last-child .msym { color: #c9a66b; }
 .zrow.explore { border-style: dashed; }
 
 /* zones reference list */

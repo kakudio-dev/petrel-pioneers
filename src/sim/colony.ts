@@ -67,7 +67,7 @@ export class Colony {
   constructor() {
     this.buildings.push(makeBuilding('command', 'active'));
     for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i));
-    this.zones.push({ id: genId(), name: C.HOME_ZONE_NAME, kind: C.HOME_ZONE_KIND, home: true });
+    this.zones.push(makeZone(C.HOME_ZONE_NAME, C.HOME_ZONE_KIND, true));
   }
 
   // --- Derived getters ---
@@ -119,6 +119,13 @@ export class Colony {
   missionDuration(type: MissionType): number {
     return type === 'explore' ? C.EXPLORE_DURATION : C.GATHER_DURATION;
   }
+  /** Expected yield of a gather mission, scaled by the target zone's abundance. */
+  missionYield(type: MissionType, zoneId: number | null): number {
+    const zone = this.zones.find((z) => z.id === zoneId);
+    if (type === 'gatherFood') return Math.round((zone?.foodAbundance ?? 1) * C.GATHER_FOOD_AMOUNT);
+    if (type === 'gatherResources') return Math.round((zone?.resourceAbundance ?? 1) * C.GATHER_ORE_AMOUNT);
+    return 0;
+  }
   /** Launch a mission with a fixed team (crew ids) targeting an optional zone. */
   launchMission(type: MissionType, zoneId: number | null, crewIds: number[]): boolean {
     if (crewIds.length === 0) return false;
@@ -141,7 +148,17 @@ export class Colony {
     if (!this.zonesRemaining) return;
     const name = C.ZONE_NAMES[this.discoveredCount];
     const kind = C.ZONE_KINDS[Math.floor(Math.random() * C.ZONE_KINDS.length)];
-    this.zones.push({ id: genId(), name, kind });
+    this.zones.push(makeZone(name, kind));
+  }
+
+  /** Zone abundance: food drifts with the season, resources slowly recover. */
+  private updateZones(dt: number): void {
+    const idx = Math.floor(this.elapsed / C.SEASON_LENGTH) % C.SEASONS.length;
+    const foodDelta = C.SEASON_FOOD_DELTA[idx] * dt;
+    for (const z of this.zones) {
+      z.foodAbundance = clamp(z.foodAbundance + foodDelta, 0, 1);
+      z.resourceAbundance = clamp(z.resourceAbundance + C.RESOURCE_REGEN * dt, 0, 1);
+    }
   }
 
   private processMissions(dt: number): void {
@@ -149,10 +166,16 @@ export class Colony {
     for (const m of this.activeMissions) {
       m.elapsed += dt;
       if (m.elapsed >= m.duration) {
-        if (m.type === 'explore') this.discoverZone();
-        else if (m.type === 'gatherFood')
-          this.food = Math.min(this.foodCap, this.food + C.GATHER_FOOD_AMOUNT);
-        else this.iron = Math.min(this.ironCap, this.iron + C.GATHER_ORE_AMOUNT);
+        const zone = this.zones.find((z) => z.id === m.zoneId);
+        if (m.type === 'explore') {
+          this.discoverZone();
+        } else if (m.type === 'gatherFood') {
+          this.food = Math.min(this.foodCap, this.food + this.missionYield('gatherFood', m.zoneId));
+          if (zone) zone.foodAbundance = Math.max(0, zone.foodAbundance - C.GATHER_DEPLETION);
+        } else {
+          this.iron = Math.min(this.ironCap, this.iron + this.missionYield('gatherResources', m.zoneId));
+          if (zone) zone.resourceAbundance = Math.max(0, zone.resourceAbundance - C.GATHER_DEPLETION);
+        }
         done.push(m.id);
       }
     }
@@ -223,6 +246,7 @@ export class Colony {
 
     this.processProjects(dt);
     this.processMissions(dt);
+    this.updateZones(dt);
 
     const f = emptyFlows();
     const energyBefore = this.E;
@@ -453,6 +477,18 @@ function emptyFlows(): Flows {
     crewCap: 0,
     buildingCrew: 0,
     brownout: false,
+  };
+}
+
+function makeZone(name: string, kind: string, home = false): Zone {
+  return {
+    id: genId(),
+    name,
+    kind,
+    home,
+    // home base is well-worked; fresh zones are richer
+    foodAbundance: home ? 0.5 : 0.6 + Math.random() * 0.4,
+    resourceAbundance: home ? 0.5 : 0.6 + Math.random() * 0.4,
   };
 }
 

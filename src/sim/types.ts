@@ -24,6 +24,8 @@ export interface Zone {
   name: string;
   kind: string; // flavour / hint at what missions it'll support (placeholder)
   home?: boolean; // the command hub's zone
+  foodAbundance: number; // 0..1 — depleted by Gather Food, drifts with the season
+  resourceAbundance: number; // 0..1 — depleted by Gather Resources, slowly recovers
 }
 
 /** A building under construction, fully operational, or being torn down. Only

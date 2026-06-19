@@ -161,9 +161,11 @@ body {
 /* crew rows (missions setup + active) */
 .mcrew-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .mcrew-row {
-  display: grid; grid-template-columns: 26px minmax(60px, 1fr) auto; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 26px minmax(60px, 1fr) auto auto; gap: 12px; align-items: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12px;
 }
+.mcrew-hp { display: inline-flex; align-items: center; gap: 5px; }
+.mcrew-hp .hp-pct { min-width: 30px; text-align: right; }
 /* away-team list: assigned crew rows + an add-crew button at the bottom */
 .crew-remove {
   display: inline-flex; align-items: center; justify-content: center;

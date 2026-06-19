@@ -1,5 +1,6 @@
 import type { Colony, CompletedMission, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
+import { healthColor } from './format';
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -300,6 +301,21 @@ export function createMissionsPage(colony: Colony) {
       renderRecent();
     }
     updateRerunForecasts(); // keep re-run forecasts fresh as seasons/abundance drift
+    updateCrewHp(); // keep HP bars on setup/active crew rows live
+  }
+
+  // Live-fill the HP bar on every mission crew row (setup teams + active missions).
+  function updateCrewHp() {
+    el.querySelectorAll('.mcrew-row[data-crew]').forEach((row) => {
+      const c = colony.crew.find((x) => x.id === Number((row as HTMLElement).dataset.crew));
+      const fill = row.querySelector('.cbarf.hp') as HTMLElement | null;
+      const pct = row.querySelector('.hp-pct') as HTMLElement | null;
+      if (!c || !fill || !pct) return;
+      const hp = Math.round(c.health);
+      fill.style.width = `${hp}%`;
+      fill.style.background = healthColor(c.health);
+      pct.textContent = `${hp}%`;
+    });
   }
 
   function renderRecent() {
@@ -366,5 +382,6 @@ function crewRowHTML(c: CrewMember, removable = false): string {
   return `<div class="mcrew-row" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
+    <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
     ${tail}</div>`;
 }

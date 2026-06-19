@@ -16,3 +16,10 @@ export function netClass(n: number): string {
   if (n < -0.05) return 'neg';
   return 'zero';
 }
+
+/** Health-bar colour by level: healthy green → warning amber → critical red. */
+export function healthColor(hp: number): string {
+  if (hp < 25) return '#ff6b6b';
+  if (hp < 50) return '#e0b341';
+  return '#6fcf97';
+}

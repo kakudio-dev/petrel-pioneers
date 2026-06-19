@@ -1,5 +1,6 @@
 import type { Colony } from '../sim/colony';
 import type { CrewMember, CrewTask } from '../sim/types';
+import { healthColor } from './format';
 
 const TASKS: { value: CrewTask; label: string }[] = [
   { value: 'building', label: 'Work in Buildings' },
@@ -15,13 +16,6 @@ interface CrewRow {
   status: HTMLElement;
   hpFill: HTMLElement;
   hpPct: HTMLElement;
-}
-
-// Health bar colour by level: healthy green → warning amber → critical red.
-function healthColor(hp: number): string {
-  if (hp < 25) return '#ff6b6b';
-  if (hp < 50) return '#e0b341';
-  return '#6fcf97';
 }
 
 // The Crew page — a roster of named individuals you assign to tasks. Working in

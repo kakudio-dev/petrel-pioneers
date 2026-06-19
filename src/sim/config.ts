@@ -47,9 +47,8 @@ export const FOOD_PRODUCTION: Record<BuildingType, number> = {
   greenhouse: 6, // +food/s at full staffing & power
 };
 
-// When the larder is empty and food can't keep up, the colony loses one crew
-// member every STARVE_DELAY seconds (discrete, not a smooth shrink).
-export const STARVE_DELAY = 9;
+// Starvation no longer kills on a timer — it drains crew health, and a crew member dies
+// only when their health reaches 0 (see HEALTH_* and crew death in colony.step).
 // The larder is provided by the command module: a fixed 30 (chosen as 5× the 6 starting
 // crew). It does NOT scale with current crew. Greenhouses add a little extra space.
 export const FOOD_STORAGE: Record<BuildingType, number> = {

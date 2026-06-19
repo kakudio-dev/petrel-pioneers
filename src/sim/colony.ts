@@ -59,7 +59,6 @@ export class Colony {
 
   // --- Crew (a roster of named individuals, not a number) ---
   crew: CrewMember[] = [];
-  private starveTimer = 0;
 
   // --- Missions & discovered zones ---
   zones: Zone[] = [];
@@ -427,25 +426,23 @@ export class Colony {
       }
     }
 
+    // 4c. Death: a crew member dies only when their health reaches 0. (Starvation kills
+    //     by draining health, not on a separate timer.) Dead crew leave any mission they
+    //     were on; a mission left with no crew is abandoned.
+    if (this.crew.some((c) => c.health <= 0)) {
+      const deadIds = new Set(this.crew.filter((c) => c.health <= 0).map((c) => c.id));
+      this.crew = this.crew.filter((c) => !deadIds.has(c.id));
+      for (const m of this.activeMissions) m.crewIds = m.crewIds.filter((id) => !deadIds.has(id));
+      this.activeMissions = this.activeMissions.filter((m) => m.crewIds.length > 0);
+    }
+    if (this.crew.length === 0) this.failed = true;
+
     // 5. Housing capacity (each habitat throttled by its own power). Crew no longer
     //    grows automatically — the roster is fixed until arrivals are added.
     let housingCap = 0;
     for (const b of active) {
       housingCap += b.type === 'habitat' ? b.capacity * b.powerLevel : b.capacity;
     }
-
-    // 6. Starvation: an empty larder that can't keep up loses one crew member every
-    //    STARVE_DELAY seconds — discrete, not a smooth shrink.
-    if (starving) {
-      this.starveTimer += dt;
-      if (this.starveTimer >= C.STARVE_DELAY && this.crew.length > 0) {
-        this.crew.pop();
-        this.starveTimer = 0;
-      }
-    } else {
-      this.starveTimer = Math.max(0, this.starveTimer - dt);
-    }
-    if (this.crew.length === 0) this.failed = true;
 
     // 7. Iron from extractors (staffing × its power), capped by the stockpile.
     let ironProduced = 0;

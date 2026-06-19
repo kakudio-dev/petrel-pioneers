@@ -12,6 +12,8 @@ export type CrewTask = 'building' | 'idle';
 export interface CrewMember {
   id: number;
   name: string;
+  /** Health, 0..100 (%). Rises while the colony is fed, falls while it starves. */
+  health: number;
   /** Placeholder stats (0..10) — surfaced in the UI, no sim effect yet. */
   stats: { vigor: number; tech: number; grit: number };
   task: CrewTask;

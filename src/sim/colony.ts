@@ -409,6 +409,12 @@ export class Colony {
       this.food = 0;
     }
 
+    // 4b. Crew health: drains a full bar over a season when starving, recovers over two
+    //     seasons when fed. Tied to the colony's fed/starving state (away crew eat too).
+    const healthPerSec =
+      (starving ? -C.HEALTH_DRAIN_PER_SEASON : C.HEALTH_RECOVER_PER_SEASON) / C.SEASON_LENGTH;
+    for (const c of this.crew) c.health = clamp(c.health + healthPerSec * dt, 0, C.HEALTH_MAX);
+
     // 5. Housing capacity (each habitat throttled by its own power). Crew no longer
     //    grows automatically — the roster is fixed until arrivals are added.
     let housingCap = 0;
@@ -600,6 +606,7 @@ function makeCrew(index: number): CrewMember {
   return {
     id: genId(),
     name,
+    health: C.START_HEALTH,
     stats: { vigor: stat(), tech: stat(), grit: stat() },
     task: 'building',
   };

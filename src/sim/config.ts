@@ -62,6 +62,12 @@ export const FOOD_STORAGE: Record<BuildingType, number> = {
 export const CREW_FOOD_PER_SEASON = 2; // food each crew eats over one season
 export const FOOD_PER_CREW = CREW_FOOD_PER_SEASON / SEASON_LENGTH; // continuous eat rate (food/s)
 
+// --- Crew health (0..HEALTH_MAX %). Falls while the colony starves, recovers while fed. ---
+export const HEALTH_MAX = 100;
+export const START_HEALTH = HEALTH_MAX; // crew arrive at full health
+export const HEALTH_DRAIN_PER_SEASON = 100; // starving: full health lost over one season
+export const HEALTH_RECOVER_PER_SEASON = 50; // fed: full recovery takes two seasons
+
 // --- Iron stockpile: storage per building type. When full, extractor output is
 //     wasted — a nudge to spend iron on building or expanding. ---
 export const IRON_STORAGE: Record<BuildingType, number> = {

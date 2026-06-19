@@ -19,6 +19,15 @@ interface CrewRow {
   el: HTMLElement;
   select: HTMLSelectElement;
   status: HTMLElement;
+  hpFill: HTMLElement;
+  hpPct: HTMLElement;
+}
+
+// Health bar colour by level: healthy green → warning amber → critical red.
+function healthColor(hp: number): string {
+  if (hp < 25) return '#ff6b6b';
+  if (hp < 50) return '#e0b341';
+  return '#6fcf97';
 }
 
 // The Crew page — a roster of named individuals you assign to tasks. Working in
@@ -56,6 +65,11 @@ export function createCrewPage(colony: Colony) {
       if (!away && row.select.value !== c.task) row.select.value = c.task;
       row.status.textContent = away ? 'On mission' : STATUS[c.task];
       row.status.className = `crew-status ${away ? 'task-mission' : 'task-' + c.task}`;
+      // live health
+      const hp = Math.round(c.health);
+      row.hpFill.style.width = `${hp}%`;
+      row.hpFill.style.background = healthColor(c.health);
+      row.hpPct.textContent = `${hp}%`;
     }
     for (const [id, row] of rows) {
       if (!present.has(id)) {
@@ -79,11 +93,22 @@ function createCrewRow(colony: Colony, c: CrewMember): CrewRow {
   el.innerHTML = `
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
+    <span class="crew-health" title="Health">
+      <span class="cstat-l">HP</span>
+      <span class="cbar"><span class="cbarf hp"></span></span>
+      <span class="hp-pct"></span>
+    </span>
     <span class="crew-stats">${statsHtml}</span>
     <select class="crew-task">${opts}</select>
     <span class="crew-status"></span>`;
   const select = el.querySelector('.crew-task') as HTMLSelectElement;
   select.value = c.task;
   select.addEventListener('change', () => colony.setTask(c.id, select.value as CrewTask));
-  return { el, select, status: el.querySelector('.crew-status') as HTMLElement };
+  return {
+    el,
+    select,
+    status: el.querySelector('.crew-status') as HTMLElement,
+    hpFill: el.querySelector('.cbarf.hp') as HTMLElement,
+    hpPct: el.querySelector('.hp-pct') as HTMLElement,
+  };
 }

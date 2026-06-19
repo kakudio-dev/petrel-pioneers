@@ -122,6 +122,24 @@ export class Colony {
     if (c) c.task = task;
   }
 
+  // --- Calendar (seasons cycle; year counts up) ---
+  /** Current season index (0 = Thaw at t=0), cycling through SEASONS. */
+  get season(): number {
+    return Math.floor(this.elapsed / C.SEASON_LENGTH) % C.SEASONS.length;
+  }
+  /** Name of the current season. */
+  get seasonName(): string {
+    return C.SEASONS[this.season];
+  }
+  /** Fraction (0..1) through the current season. */
+  get seasonProgress(): number {
+    return (this.elapsed % C.SEASON_LENGTH) / C.SEASON_LENGTH;
+  }
+  /** Current year (1-based: starts at Y1). */
+  get year(): number {
+    return Math.floor(this.elapsed / (C.SEASON_LENGTH * C.SEASONS.length)) + 1;
+  }
+
   // --- Zone geology ---
   /** The home zone (where the command hub and all buildings sit). */
   get homeZone(): Zone | undefined {
@@ -328,7 +346,7 @@ export class Colony {
     this.processMissions(dt);
 
     // Season-change event: fire once when the clock crosses into a new season.
-    const seasonIdx = Math.floor(this.elapsed / C.SEASON_LENGTH) % C.SEASONS.length;
+    const seasonIdx = this.season;
     if (seasonIdx !== this.seasonIndex) {
       this.seasonIndex = seasonIdx;
       this.applySeasonChange(seasonIdx);

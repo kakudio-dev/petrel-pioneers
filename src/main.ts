@@ -1,7 +1,6 @@
 import './ui/style.css';
 import { Colony } from './sim/colony';
 import { TickLoop } from './sim/tickLoop';
-import { SEASON_LENGTH, SEASONS } from './sim/config';
 import { createStocksPanel } from './ui/stocksPanel';
 import { createBuildingsPanel } from './ui/buildingsPanel';
 import { createCrewPage } from './ui/crewPage';
@@ -131,13 +130,8 @@ function render() {
   banner.classList.toggle('show', famine);
   overlay.classList.toggle('show', colony.failed);
   // Clock runs in seasons (~1 min each), 4 to a year — shown as a fill ring.
-  const t = colony.elapsed;
-  const yearLen = SEASON_LENGTH * SEASONS.length;
-  const year = Math.floor(t / yearLen) + 1;
-  const season = SEASONS[Math.floor(t / SEASON_LENGTH) % SEASONS.length];
-  const progress = (t % SEASON_LENGTH) / SEASON_LENGTH;
-  seasonLabel.textContent = `Y${year} · ${season}`;
-  ringFg.style.strokeDashoffset = String(RING_C * (1 - progress));
+  seasonLabel.textContent = `Y${colony.year} · ${colony.seasonName}`;
+  ringFg.style.strokeDashoffset = String(RING_C * (1 - colony.seasonProgress));
 }
 
 loop.start();

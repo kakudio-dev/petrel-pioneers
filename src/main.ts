@@ -136,6 +136,8 @@ function render() {
 
 loop.start();
 
-// Expose for console poking during prototyping.
-(window as unknown as { colony: Colony; Colony: typeof Colony }).colony = colony;
-(window as unknown as { colony: Colony; Colony: typeof Colony }).Colony = Colony;
+// Expose for console poking during prototyping (dev builds only).
+if (import.meta.env.DEV) {
+  (window as unknown as { colony: Colony; Colony: typeof Colony }).colony = colony;
+  (window as unknown as { colony: Colony; Colony: typeof Colony }).Colony = Colony;
+}

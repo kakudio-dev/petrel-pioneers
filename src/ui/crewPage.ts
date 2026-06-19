@@ -9,12 +9,6 @@ const STATUS: Record<CrewTask, string> = {
   building: 'On shift',
   idle: 'Idle',
 };
-const STATS: { key: keyof CrewMember['stats']; label: string }[] = [
-  { key: 'vigor', label: 'VIG' },
-  { key: 'tech', label: 'TEC' },
-  { key: 'grit', label: 'GRT' },
-];
-
 interface CrewRow {
   el: HTMLElement;
   select: HTMLSelectElement;
@@ -85,10 +79,6 @@ export function createCrewPage(colony: Colony) {
 function createCrewRow(colony: Colony, c: CrewMember): CrewRow {
   const el = document.createElement('div');
   el.className = 'crew-row';
-  const statsHtml = STATS.map(
-    (s) =>
-      `<span class="cstat" title="${s.key}"><span class="cstat-l">${s.label}</span><span class="cbar"><span class="cbarf" style="width:${c.stats[s.key] * 10}%"></span></span></span>`,
-  ).join('');
   const opts = TASKS.map((t) => `<option value="${t.value}">${t.label}</option>`).join('');
   el.innerHTML = `
     <span class="crew-av">${c.name[0]}</span>
@@ -98,7 +88,6 @@ function createCrewRow(colony: Colony, c: CrewMember): CrewRow {
       <span class="cbar"><span class="cbarf hp"></span></span>
       <span class="hp-pct"></span>
     </span>
-    <span class="crew-stats">${statsHtml}</span>
     <select class="crew-task">${opts}</select>
     <span class="crew-status"></span>`;
   const select = el.querySelector('.crew-task') as HTMLSelectElement;

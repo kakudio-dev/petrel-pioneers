@@ -17,11 +17,6 @@ const DESC: Record<MissionType, string> = {
   gatherResources: 'Mine this zone for ore',
 };
 const GATHER_TYPES: MissionType[] = ['gatherFood', 'gatherResources'];
-const STATS: { key: keyof CrewMember['stats']; label: string }[] = [
-  { key: 'vigor', label: 'VIG' },
-  { key: 'tech', label: 'TEC' },
-  { key: 'grit', label: 'GRT' },
-];
 
 export function createMissionsPage(colony: Colony) {
   const el = document.createElement('div');
@@ -344,13 +339,6 @@ export function createMissionsPage(colony: Colony) {
   return { el, update };
 }
 
-function statsHTML(c: CrewMember): string {
-  return STATS.map(
-    (s) =>
-      `<span class="cstat"><span class="cstat-l">${s.label}</span><span class="cbar"><span class="cbarf" style="width:${c.stats[s.key] * 10}%"></span></span></span>`,
-  ).join('');
-}
-
 function recentRowHTML(m: CompletedMission, idx: number, rerunnable: boolean): string {
   let sub: string;
   let got: string;
@@ -378,6 +366,5 @@ function crewRowHTML(c: CrewMember, removable = false): string {
   return `<div class="mcrew-row" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
-    <span class="crew-stats">${statsHTML(c)}</span>
     ${tail}</div>`;
 }

@@ -35,7 +35,6 @@ export interface CompletedMission {
 
 let nextId = 1;
 const genId = () => nextId++;
-const stat = (rng: Rng) => 3 + Math.floor(rng() * 7); // placeholder 3..9
 const rollRange = ([lo, hi]: readonly [number, number], rng: Rng) => lo + rng() * (hi - lo);
 
 /**
@@ -81,7 +80,7 @@ export class Colony {
   constructor(seed?: number) {
     this.rng = seed === undefined ? Math.random : mulberry32(seed);
     this.buildings.push(makeBuilding('command', 'active'));
-    for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i, this.rng));
+    for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i));
     this.zones.push(makeZone(C.HOME_ZONE_NAME, C.HOME_ZONE_KIND, true, this.rng));
   }
 
@@ -689,13 +688,12 @@ function makeZone(name: string, kind: string, home: boolean, rng: Rng): Zone {
   };
 }
 
-function makeCrew(index: number, rng: Rng): CrewMember {
+function makeCrew(index: number): CrewMember {
   const name = C.CREW_NAMES[index % C.CREW_NAMES.length];
   return {
     id: genId(),
     name,
     health: C.START_HEALTH,
-    stats: { vigor: stat(rng), tech: stat(rng), grit: stat(rng) },
     task: 'building',
   };
 }

@@ -7,7 +7,7 @@ describe('Colony sim regression suite', () => {
     const a = new Colony(42);
     const b = new Colony(42);
     expect(a.zones[0].fertility).toBeCloseTo(b.zones[0].fertility, 5);
-    expect(a.crew[0].stats.vigor).toBe(b.crew[0].stats.vigor);
+    expect(a.zones[0].oreRichness).toBeCloseTo(b.zones[0].oreRichness, 5);
 
     const c = new Colony(7);
     expect(c.zones[0].fertility).not.toBeCloseTo(a.zones[0].fertility, 5);

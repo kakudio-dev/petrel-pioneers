@@ -155,4 +155,27 @@ describe('Colony sim regression suite', () => {
     expect(colony.iron).toBe(8);
     expect(z.resourceAbundance).toBe(72);
   });
+
+  it('12. food foragers do not starve — they heal at mission rate mid-famine', () => {
+    const colony = new Colony(1);
+    const forager = colony.crew[0];
+    const stuck = colony.crew[1];
+    colony.activeMissions.push({
+      id: 3,
+      type: 'gatherFood',
+      zoneId: colony.zones[0].id,
+      crewIds: [forager.id],
+      elapsed: 0,
+      duration: 999,
+    });
+    forager.health = 50;
+    stuck.health = 50;
+    colony.food = 0; // empty larder -> colony is starving
+    for (let i = 0; i < 30; i++) colony.step(0.1); // 3s
+
+    // forager feeds itself and heals at the away-mission rate (0.5 * 50/season)
+    expect(forager.health).toBeCloseTo(51.25, 5);
+    // a larder-dependent crew drains a full bar/season
+    expect(stuck.health).toBeCloseTo(45, 5);
+  });
 });

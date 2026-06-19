@@ -469,11 +469,7 @@ export class Colony {
       foodProduction += base * b.staffing * b.powerLevel * fertility;
     }
     // Crew away on a Gather Food run forage for themselves — they don't draw the larder.
-    const foragers = new Set<number>();
-    for (const m of this.activeMissions) {
-      if (m.type === 'gatherFood') for (const id of m.crewIds) foragers.add(id);
-    }
-    const eatingCrew = Math.max(0, this.crew.length - foragers.size);
+    const eatingCrew = Math.max(0, this.crew.length - this.foodForagers().size);
     const foodConsumption = eatingCrew * C.FOOD_PER_CREW;
     const foodCap = this.foodCap;
     const tentativeF = this.food + (foodProduction - foodConsumption) * dt;
@@ -489,23 +485,37 @@ export class Colony {
     return { foodProduction, foodConsumption, foodRatio, starving };
   }
 
-  /** Crew health: drains a full bar over a season when starving (uniform), recovers
-   *  over two seasons when fed — but healing slows with exertion: ×0.5 away on a
-   *  mission, ×0.75 staffing buildings, ×1 when idle. */
+  /** Crew on a Gather Food run — they forage for themselves, so they neither draw the
+   *  larder nor suffer starvation. */
+  private foodForagers(): Set<number> {
+    const ids = new Set<number>();
+    for (const m of this.activeMissions) {
+      if (m.type === 'gatherFood') for (const id of m.crewIds) ids.add(id);
+    }
+    return ids;
+  }
+
+  /** Crew health. Larder-fed crew drain a full bar over a season while the colony
+   *  starves; otherwise everyone recovers (over two seasons), scaled by exertion: ×0.5
+   *  away on a mission, ×0.75 staffing buildings, ×1 when idle. Food foragers feed
+   *  themselves in the field, so they recover at their mission rate even mid-famine. */
   private stepHealth(starving: boolean, dt: number): void {
-    if (starving) {
-      const drain = (-C.HEALTH_DRAIN_PER_SEASON / C.SEASON_LENGTH) * dt;
-      for (const c of this.crew) c.health = clamp(c.health + drain, 0, C.HEALTH_MAX);
-    } else {
-      const heal = (C.HEALTH_RECOVER_PER_SEASON / C.SEASON_LENGTH) * dt;
-      for (const c of this.crew) {
+    const foragers = this.foodForagers();
+    const drainPerSec = -C.HEALTH_DRAIN_PER_SEASON / C.SEASON_LENGTH;
+    const healPerSec = C.HEALTH_RECOVER_PER_SEASON / C.SEASON_LENGTH;
+    for (const c of this.crew) {
+      let delta: number;
+      if (starving && !foragers.has(c.id)) {
+        delta = drainPerSec * dt; // drawing the empty larder
+      } else {
         const mult = this.onMission(c.id)
           ? C.HEAL_MULT_MISSION
           : c.task === 'building'
             ? C.HEAL_MULT_BUILDING
             : 1;
-        c.health = clamp(c.health + heal * mult, 0, C.HEALTH_MAX);
+        delta = healPerSec * mult * dt;
       }
+      c.health = clamp(c.health + delta, 0, C.HEALTH_MAX);
     }
   }
 

@@ -9,6 +9,7 @@ import type {
   Zone,
 } from './types';
 import * as C from './config';
+import { mulberry32, type Rng } from './rng';
 
 export type MissionType = 'explore' | 'gatherFood' | 'gatherResources';
 
@@ -34,8 +35,8 @@ export interface CompletedMission {
 
 let nextId = 1;
 const genId = () => nextId++;
-const stat = () => 3 + Math.floor(Math.random() * 7); // placeholder 3..9
-const rollRange = ([lo, hi]: readonly [number, number]) => lo + Math.random() * (hi - lo);
+const stat = (rng: Rng) => 3 + Math.floor(rng() * 7); // placeholder 3..9
+const rollRange = ([lo, hi]: readonly [number, number], rng: Rng) => lo + rng() * (hi - lo);
 
 /**
  * A self-contained colony sim object. Owns its slots, stocks, buildings, and
@@ -75,11 +76,13 @@ export class Colony {
   elapsed = 0;
   failed = false;
   private seasonIndex = 0; // current season (0 = Thaw at t=0); used to fire season-change events
+  private rng: Rng;
 
-  constructor() {
+  constructor(seed?: number) {
+    this.rng = seed === undefined ? Math.random : mulberry32(seed);
     this.buildings.push(makeBuilding('command', 'active'));
-    for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i));
-    this.zones.push(makeZone(C.HOME_ZONE_NAME, C.HOME_ZONE_KIND, true));
+    for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i, this.rng));
+    this.zones.push(makeZone(C.HOME_ZONE_NAME, C.HOME_ZONE_KIND, true, this.rng));
   }
 
   // --- Derived getters ---
@@ -227,8 +230,8 @@ export class Colony {
   private discoverZone(): string | undefined {
     if (!this.zonesRemaining) return undefined;
     const name = C.ZONE_NAMES[this.discoveredCount];
-    const kind = C.ZONE_KINDS[Math.floor(Math.random() * C.ZONE_KINDS.length)];
-    this.zones.push(makeZone(name, kind));
+    const kind = C.ZONE_KINDS[Math.floor(this.rng() * C.ZONE_KINDS.length)];
+    this.zones.push(makeZone(name, kind, false, this.rng));
     return name;
   }
 
@@ -608,18 +611,18 @@ function emptyFlows(): Flows {
   };
 }
 
-function makeZone(name: string, kind: string, home = false): Zone {
+function makeZone(name: string, kind: string, home: boolean, rng: Rng): Zone {
   let fertility: number;
   let oreRichness: number;
   if (home) {
     // home zone: roll an integer fertility % in range, ore richness takes the rest (sum = 100)
     const [lo, hi] = C.HOME_FERTILITY_PCT_RANGE;
-    const pct = lo + Math.floor(Math.random() * (hi - lo + 1));
+    const pct = lo + Math.floor(rng() * (hi - lo + 1));
     fertility = pct / 100;
     oreRichness = (100 - pct) / 100;
   } else {
-    fertility = rollRange(C.FERTILITY_RANGE);
-    oreRichness = rollRange(C.ORE_RICHNESS_RANGE);
+    fertility = rollRange(C.FERTILITY_RANGE, rng);
+    oreRichness = rollRange(C.ORE_RICHNESS_RANGE, rng);
   }
   return {
     id: genId(),
@@ -634,13 +637,13 @@ function makeZone(name: string, kind: string, home = false): Zone {
   };
 }
 
-function makeCrew(index: number): CrewMember {
+function makeCrew(index: number, rng: Rng): CrewMember {
   const name = C.CREW_NAMES[index % C.CREW_NAMES.length];
   return {
     id: genId(),
     name,
     health: C.START_HEALTH,
-    stats: { vigor: stat(), tech: stat(), grit: stat() },
+    stats: { vigor: stat(rng), tech: stat(rng), grit: stat(rng) },
     task: 'building',
   };
 }

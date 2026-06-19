@@ -9,12 +9,25 @@ export type StaffStatus = 'staffed' | 'understaffed' | 'starved' | 'online';
  *  'idle' = off duty. Being away on a mission is tracked on the mission, not here. */
 export type CrewTask = 'building' | 'idle';
 
+/** Skills a crew member can train. Add a new one here, in config's SKILLS table, and
+ *  wherever its XP is earned — the leveling machinery is generic. */
+export type SkillId = 'explorer';
+
+/** Per-crew progress in one skill. `xp` is progress toward the NEXT level (it resets
+ *  on level-up); `level` is 0-based and drives the skill's bonuses. */
+export interface Skill {
+  xp: number;
+  level: number;
+}
+
 export interface CrewMember {
   id: number;
   name: string;
   /** Health, 0..100 (%). Rises while the colony is fed, falls while it starves. */
   health: number;
   task: CrewTask;
+  /** Trained skills, keyed by SkillId (every crew has an entry per known skill). */
+  skills: Record<SkillId, Skill>;
 }
 
 /** A region discovered by Explore missions. Later, other missions run in zones.

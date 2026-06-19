@@ -78,12 +78,17 @@ body {
 .crew-summary { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
 .crew-list { display: flex; flex-direction: column; gap: 8px; }
 .crew-row {
-  display: grid; grid-template-columns: 28px minmax(70px, 1fr) auto 168px 96px; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 28px minmax(70px, 1fr) auto auto 168px 96px; gap: 12px; align-items: center;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: 12px;
 }
 .crew-health { display: inline-flex; align-items: center; gap: 5px; }
 .crew-health .cbar { width: 60px; }
 .hp-pct { font-size: 11px; color: var(--ink-dim); min-width: 30px; }
+.crew-skill { display: inline-flex; align-items: center; gap: 5px; }
+.crew-skill .skill-icon { font-size: 15px; color: var(--accent); }
+.skill-lv { font-size: 11px; font-weight: 600; min-width: 20px; }
+.crew-skill .cbar.xp { width: 44px; }
+.crew-skill .cbarf.xpf { background: var(--accent); }
 .crew-av {
   width: 26px; height: 26px; border-radius: 50%; background: #1f2a36; color: var(--ink);
   display: flex; align-items: center; justify-content: center; font-weight: 600;

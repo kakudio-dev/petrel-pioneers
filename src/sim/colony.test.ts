@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Colony } from './colony';
 import * as C from './config';
+import { gainXp, skillLevel, xpToNext } from './skills';
 
 describe('Colony sim regression suite', () => {
   it('1. is deterministic for a given seed and differs across seeds', () => {
@@ -40,26 +41,29 @@ describe('Colony sim regression suite', () => {
   it('5. gather yields: food has a per-crew carry cap of 5, ore does not', () => {
     const colony = new Colony(1);
     const z = colony.zones[0];
+    const three = colony.crew.slice(0, 3).map((c) => c.id);
+    const four = colony.crew.slice(0, 4).map((c) => c.id);
 
     z.foodAbundance = 100;
-    expect(colony.missionYield('gatherFood', z.id, 3)).toBe(15);
+    expect(colony.missionYield('gatherFood', z.id, three)).toBe(15);
 
     z.foodAbundance = 40;
-    expect(colony.missionYield('gatherFood', z.id, 3)).toBe(6);
+    expect(colony.missionYield('gatherFood', z.id, three)).toBe(6);
 
     z.resourceAbundance = 80;
-    expect(colony.missionYield('gatherResources', z.id, 4)).toBe(16);
+    expect(colony.missionYield('gatherResources', z.id, four)).toBe(16);
   });
 
   it('6. season-aware forecast differs from current-abundance yield', () => {
     const colony = new Colony(5);
     const z = colony.zones[0];
+    const two = colony.crew.slice(0, 2).map((c) => c.id);
     colony.elapsed = 50;
     z.fertility = 0.5;
     z.foodAbundance = 40;
 
-    expect(colony.missionYield('gatherFood', z.id, 2)).toBe(4);
-    expect(colony.missionForecast('gatherFood', z.id, 2)).toBe(9);
+    expect(colony.missionYield('gatherFood', z.id, two)).toBe(4);
+    expect(colony.missionForecast('gatherFood', z.id, two)).toBe(9);
   });
 
   it('7. health drains a full bar per season when starving', () => {
@@ -177,5 +181,51 @@ describe('Colony sim regression suite', () => {
     expect(forager.health).toBeCloseTo(51.25, 5);
     // a larder-dependent crew drains a full bar/season
     expect(stuck.health).toBeCloseTo(45, 5);
+  });
+
+  it('13. skills level up, each level costing more XP', () => {
+    const c = new Colony(1).crew[0];
+    expect(skillLevel(c, 'explorer')).toBe(0);
+    expect(xpToNext('explorer', 0)).toBe(C.SKILLS.explorer.baseXp);
+    expect(xpToNext('explorer', 1)).toBe(C.SKILLS.explorer.baseXp * 2);
+
+    gainXp(c, 'explorer', 100); // exactly one level
+    expect(c.skills.explorer.level).toBe(1);
+    expect(c.skills.explorer.xp).toBe(0);
+
+    gainXp(c, 'explorer', 250); // 200 to reach L2, 50 carried over
+    expect(c.skills.explorer.level).toBe(2);
+    expect(c.skills.explorer.xp).toBe(50);
+  });
+
+  it('14. completing a gather/explore run grants Explorer XP to its crew', () => {
+    const colony = new Colony(1);
+    const a = colony.crew[0];
+    const b = colony.crew[1];
+    colony.activeMissions.push({
+      id: 5,
+      type: 'gatherResources',
+      zoneId: colony.zones[0].id,
+      crewIds: [a.id, b.id],
+      elapsed: 0,
+      duration: 0.05,
+    });
+    colony.step(0.1); // resolves
+
+    expect(a.skills.explorer.xp).toBe(C.MISSION_XP);
+    expect(b.skills.explorer.xp).toBe(C.MISSION_XP);
+  });
+
+  it('15. Explorer levels raise carry cap (+1) and find rate (+1%)', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0];
+    const c = colony.crew[0];
+    c.skills.explorer.level = 2; // +2 food carry, +2% find
+
+    z.foodAbundance = 100; // find 0.07*100=7, carry cap 5+2=7 -> min = 7
+    expect(colony.missionYield('gatherFood', z.id, [c.id])).toBe(7);
+
+    z.resourceAbundance = 80; // ore 0.07*80 = 5.6 -> round 6 (no carry cap)
+    expect(colony.missionYield('gatherResources', z.id, [c.id])).toBe(6);
   });
 });

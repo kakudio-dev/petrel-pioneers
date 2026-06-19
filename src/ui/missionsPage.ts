@@ -51,10 +51,10 @@ export function createMissionsPage(colony: Colony) {
   let recentSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement; yield: HTMLElement }>();
 
-  function rewardText(type: MissionType, zoneId: number | null, crew: number): string {
+  function rewardText(type: MissionType, zoneId: number | null, crewIds: number[]): string {
     if (type === 'explore') return colony.zonesRemaining ? 'Discover a new zone' : 'Region fully explored';
-    if (type === 'gatherFood') return `+${colony.missionForecast('gatherFood', zoneId, crew)} food`;
-    return `+${colony.missionForecast('gatherResources', zoneId, crew)} ore`;
+    if (type === 'gatherFood') return `+${colony.missionForecast('gatherFood', zoneId, crewIds)} food`;
+    return `+${colony.missionForecast('gatherResources', zoneId, crewIds)} ore`;
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
@@ -117,7 +117,7 @@ export function createMissionsPage(colony: Colony) {
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
       <div class="mcrew-list">${rows}${addRow || (rows ? '' : '<div class="empty">No crew available.</div>')}</div>
       <div class="setup-foot">
-        <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId, t.size)}</span>
+        <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId, [...t])}</span>
         <button class="setup-launch">Launch</button>
       </div>
     </div>`;
@@ -269,11 +269,10 @@ export function createMissionsPage(colony: Colony) {
         r.fill.style.width = `${Math.min(100, (m.elapsed / m.duration) * 100)}%`;
         r.left.textContent = `${Math.ceil(m.duration - m.elapsed)}s`;
         const remaining = m.duration - m.elapsed;
-        const crew = m.crewIds.length;
         if (m.type === 'gatherFood')
-          r.yield.textContent = `+${colony.missionForecast('gatherFood', m.zoneId, crew, remaining)} food`;
+          r.yield.textContent = `+${colony.missionForecast('gatherFood', m.zoneId, m.crewIds, remaining)} food`;
         else if (m.type === 'gatherResources')
-          r.yield.textContent = `+${colony.missionForecast('gatherResources', m.zoneId, crew, remaining)} ore`;
+          r.yield.textContent = `+${colony.missionForecast('gatherResources', m.zoneId, m.crewIds, remaining)} ore`;
       }
     }
 
@@ -337,18 +336,18 @@ export function createMissionsPage(colony: Colony) {
   // Live: what each logged gather mission would collect if re-run now (season-aware,
   // using the crew the re-run would actually take).
   function updateRerunForecasts() {
-    const avail = colony.availableCrew.length;
     for (const m of colony.completedMissions) {
       if (m.type === 'explore') continue;
       const span = recentList.querySelector(`[data-again="${m.id}"]`);
       if (!span) continue;
-      if (avail === 0) {
+      // the crew a re-run would actually take (up to the original count, from those free now)
+      const ids = colony.availableCrew.slice(0, Math.max(1, m.crew)).map((c) => c.id);
+      if (ids.length === 0) {
         span.textContent = 'repeat —';
         continue;
       }
-      const crew = Math.min(avail, m.crew);
       const unit = m.type === 'gatherFood' ? 'food' : 'ore';
-      span.textContent = `repeat +${colony.missionForecast(m.type, m.zoneId, crew)} ${unit}`;
+      span.textContent = `repeat +${colony.missionForecast(m.type, m.zoneId, ids)} ${unit}`;
     }
   }
 

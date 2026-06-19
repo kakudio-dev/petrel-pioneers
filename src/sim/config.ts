@@ -2,7 +2,7 @@
 // Energy is an automatic power grid; food is an analogous larder. Every building
 // has a fixed power profile; consumers throttle when the battery empties.
 
-import type { BuildingType } from './types';
+import type { BuildingType, SkillId } from './types';
 
 export const FIXED_DT = 0.1; // seconds per sim step
 
@@ -120,10 +120,24 @@ export const CREW_REQ: Record<BuildingType, number> = {
 // of the zone's current abundance; that same total is subtracted from the abundance. For
 // food, each crew can carry at most CREW_CARRY_FOOD home (the rest of the find is lost).
 export const CREW_FIND_RATE = 0.05; // share of current abundance each crew finds per run
-export const CREW_CARRY_FOOD = 5; // max food a single crew can carry back from a run
+export const CREW_CARRY_FOOD = 5; // max food a single crew can carry back from a run (level 0)
 export const EXPLORE_DURATION = 22; // seconds to discover a new zone
 export const GATHER_DURATION = 26; // seconds for a gather run
 export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log
+
+// --- Skills & leveling (generic — add a skill by extending SkillId + this table, then
+//     awarding its XP somewhere). Each level costs `baseXp` more than the last. ---
+export interface SkillDef {
+  name: string;
+  baseXp: number; // XP to go from level 0→1; level L→L+1 costs baseXp × (L + 1)
+}
+export const SKILLS: Record<SkillId, SkillDef> = {
+  explorer: { name: 'Explorer', baseXp: 100 },
+};
+export const MISSION_XP = 25; // Explorer XP each crew earns per completed gather/explore run
+// Explorer bonuses applied per level (on top of the level-0 CREW_* values):
+export const CARRY_PER_LEVEL = 1; // +1 max food carried per Explorer level
+export const FIND_PER_LEVEL = 0.01; // +1% find rate per Explorer level
 // Abundance is a 0..MAX_ABUNDANCE score. It only changes on discrete events — never
 // continuously over time.
 export const MAX_ABUNDANCE = 100;

@@ -9,6 +9,7 @@ import type {
   Zone,
 } from './types';
 import * as C from './config';
+import { gainXp, makeSkills, skillLevel } from './skills';
 import { mulberry32, type Rng } from './rng';
 
 export type MissionType = 'explore' | 'gatherFood' | 'gatherResources';
@@ -167,33 +168,57 @@ export class Colony {
   missionDuration(type: MissionType): number {
     return type === 'explore' ? C.EXPLORE_DURATION : C.GATHER_DURATION;
   }
-  /** Total abundance each crew finds on a run: CREW_FIND_RATE of the zone's current
-   *  abundance, per crew. This same amount is what's subtracted from the abundance. */
-  private foundBy(crew: number, abundance: number): number {
-    return crew * C.CREW_FIND_RATE * abundance;
+  /** A crew member's share of abundance found per run — base rate plus Explorer bonus. */
+  private findRate(c: CrewMember): number {
+    return C.CREW_FIND_RATE + skillLevel(c, 'explorer') * C.FIND_PER_LEVEL;
   }
-  /** Food carried home from a given food-abundance level (capped at CREW_CARRY_FOOD/crew). */
-  private carriedFood(crew: number, foodAbundance: number): number {
-    return Math.round(crew * Math.min(C.CREW_FIND_RATE * foodAbundance, C.CREW_CARRY_FOOD));
+  /** A crew member's max food carried home per run — base cap plus Explorer bonus. */
+  private carryCap(c: CrewMember): number {
+    return C.CREW_CARRY_FOOD + skillLevel(c, 'explorer') * C.CARRY_PER_LEVEL;
+  }
+  private crewByIds(ids: number[]): CrewMember[] {
+    return ids
+      .map((id) => this.crew.find((c) => c.id === id))
+      .filter((c): c is CrewMember => c !== undefined);
+  }
+  /** Total abundance a team finds (and depletes) at a given abundance — summed per crew. */
+  private totalFound(team: CrewMember[], abundance: number): number {
+    let sum = 0;
+    for (const c of team) sum += this.findRate(c) * abundance;
+    return sum;
+  }
+  /** Food a team carries home from a given food abundance — each crew capped at its carry. */
+  private foodDelivered(team: CrewMember[], foodAbundance: number): number {
+    let sum = 0;
+    for (const c of team) sum += Math.min(this.findRate(c) * foodAbundance, this.carryCap(c));
+    return sum;
   }
   /** Resources actually carried home by a gather run, from the zone's CURRENT abundance —
-   *  used when the run resolves. Food is capped at CREW_CARRY_FOOD/crew; ore has no cap. */
-  missionYield(type: MissionType, zoneId: number | null, crew: number): number {
+   *  used when the run resolves. Food is capped per crew; ore has no cap. */
+  missionYield(type: MissionType, zoneId: number | null, crewIds: number[]): number {
     const zone = this.zones.find((z) => z.id === zoneId);
-    if (!zone || type === 'explore' || crew <= 0) return 0;
-    if (type === 'gatherFood') return this.carriedFood(crew, zone.foodAbundance);
-    return Math.round(this.foundBy(crew, zone.resourceAbundance));
+    const team = this.crewByIds(crewIds);
+    if (!zone || type === 'explore' || team.length === 0) return 0;
+    if (type === 'gatherFood') return Math.round(this.foodDelivered(team, zone.foodAbundance));
+    return Math.round(this.totalFound(team, zone.resourceAbundance));
   }
   /** Forecast of a run's yield. Unlike missionYield this projects food abundance forward
    *  to when the run RETURNS — applying any season change(s) it will cross — so the
    *  predicted food matches what actually comes back. `lookahead` is the time until return
    *  (full duration for a pre-launch preview; remaining time for an in-flight mission).
    *  Ore ignores seasons. */
-  missionForecast(type: MissionType, zoneId: number | null, crew: number, lookahead = C.GATHER_DURATION): number {
+  missionForecast(
+    type: MissionType,
+    zoneId: number | null,
+    crewIds: number[],
+    lookahead = C.GATHER_DURATION,
+  ): number {
     const zone = this.zones.find((z) => z.id === zoneId);
-    if (!zone || type === 'explore' || crew <= 0) return 0;
-    if (type === 'gatherFood') return this.carriedFood(crew, this.projectedFoodAbundance(zone, lookahead));
-    return Math.round(this.foundBy(crew, zone.resourceAbundance));
+    const team = this.crewByIds(crewIds);
+    if (!zone || type === 'explore' || team.length === 0) return 0;
+    if (type === 'gatherFood')
+      return Math.round(this.foodDelivered(team, this.projectedFoodAbundance(zone, lookahead)));
+    return Math.round(this.totalFound(team, zone.resourceAbundance));
   }
   /** A zone's food abundance projected `lookahead` seconds ahead, applying each season
    *  change crossed in that window. */
@@ -254,27 +279,36 @@ export class Colony {
       m.elapsed += dt;
       if (m.elapsed >= m.duration) {
         const zone = this.zones.find((z) => z.id === m.zoneId);
-        const crew = m.crewIds.length;
+        const team = this.crewByIds(m.crewIds);
         let amount = 0;
         let zoneName = zone?.name ?? '';
         if (m.type === 'explore') {
           zoneName = this.discoverZone() ?? '';
         } else if (m.type === 'gatherFood') {
-          amount = this.missionYield('gatherFood', m.zoneId, crew);
+          amount = this.missionYield('gatherFood', m.zoneId, m.crewIds);
           this.food = Math.min(this.foodCap, this.food + amount);
           if (zone) {
-            const found = this.foundBy(crew, zone.foodAbundance);
+            const found = this.totalFound(team, zone.foodAbundance);
             zone.foodAbundance = Math.max(0, Math.round(zone.foodAbundance - found));
           }
         } else {
-          amount = this.missionYield('gatherResources', m.zoneId, crew);
+          amount = this.missionYield('gatherResources', m.zoneId, m.crewIds);
           this.iron = Math.min(this.ironCap, this.iron + amount);
           if (zone) {
-            const found = this.foundBy(crew, zone.resourceAbundance);
+            const found = this.totalFound(team, zone.resourceAbundance);
             zone.resourceAbundance = Math.max(0, Math.round(zone.resourceAbundance - found));
           }
         }
-        this.completedMissions.unshift({ id: m.id, type: m.type, zoneId: m.zoneId, zoneName, crew, amount });
+        // Every crew on a completed gather/explore run trains their Explorer skill.
+        for (const c of team) gainXp(c, 'explorer', C.MISSION_XP);
+        this.completedMissions.unshift({
+          id: m.id,
+          type: m.type,
+          zoneId: m.zoneId,
+          zoneName,
+          crew: m.crewIds.length,
+          amount,
+        });
         if (this.completedMissions.length > C.RECENT_MISSIONS) this.completedMissions.pop();
         done.push(m.id);
       }
@@ -695,6 +729,7 @@ function makeCrew(index: number): CrewMember {
     name,
     health: C.START_HEALTH,
     task: 'building',
+    skills: makeSkills(),
   };
 }
 

@@ -1,6 +1,7 @@
 import type { Colony } from '../sim/colony';
 import type { CrewMember, CrewTask } from '../sim/types';
 import { healthColor } from './format';
+import { xpToNext } from '../sim/skills';
 
 const TASKS: { value: CrewTask; label: string }[] = [
   { value: 'building', label: 'Work in Buildings' },
@@ -16,6 +17,8 @@ interface CrewRow {
   status: HTMLElement;
   hpFill: HTMLElement;
   hpPct: HTMLElement;
+  xpFill: HTMLElement;
+  lv: HTMLElement;
 }
 
 // The Crew page — a roster of named individuals you assign to tasks. Working in
@@ -58,6 +61,10 @@ export function createCrewPage(colony: Colony) {
       row.hpFill.style.width = `${hp}%`;
       row.hpFill.style.background = healthColor(c.health);
       row.hpPct.textContent = `${hp}%`;
+      // explorer skill: level + progress toward next
+      const sk = c.skills.explorer;
+      row.lv.textContent = `L${sk.level}`;
+      row.xpFill.style.width = `${(sk.xp / xpToNext('explorer', sk.level)) * 100}%`;
     }
     for (const [id, row] of rows) {
       if (!present.has(id)) {
@@ -82,6 +89,11 @@ function createCrewRow(colony: Colony, c: CrewMember): CrewRow {
       <span class="cbar"><span class="cbarf hp"></span></span>
       <span class="hp-pct"></span>
     </span>
+    <span class="crew-skill" title="Explorer">
+      <span class="msym skill-icon">explore</span>
+      <span class="skill-lv"></span>
+      <span class="cbar xp"><span class="cbarf xpf"></span></span>
+    </span>
     <select class="crew-task">${opts}</select>
     <span class="crew-status"></span>`;
   const select = el.querySelector('.crew-task') as HTMLSelectElement;
@@ -93,5 +105,7 @@ function createCrewRow(colony: Colony, c: CrewMember): CrewRow {
     status: el.querySelector('.crew-status') as HTMLElement,
     hpFill: el.querySelector('.cbarf.hp') as HTMLElement,
     hpPct: el.querySelector('.hp-pct') as HTMLElement,
+    xpFill: el.querySelector('.cbarf.xpf') as HTMLElement,
+    lv: el.querySelector('.skill-lv') as HTMLElement,
   };
 }

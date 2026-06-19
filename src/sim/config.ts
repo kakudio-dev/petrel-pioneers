@@ -66,7 +66,11 @@ export const FOOD_PER_CREW = CREW_FOOD_PER_SEASON / SEASON_LENGTH; // continuous
 export const HEALTH_MAX = 100;
 export const START_HEALTH = HEALTH_MAX; // crew arrive at full health
 export const HEALTH_DRAIN_PER_SEASON = 100; // starving: full health lost over one season
-export const HEALTH_RECOVER_PER_SEASON = 50; // fed: full recovery takes two seasons
+export const HEALTH_RECOVER_PER_SEASON = 50; // fed & resting: full recovery takes two seasons
+// Healing scales with exertion (draining while starving is unaffected):
+export const HEAL_MULT_MISSION = 0.5; // away on a mission — strenuous, 50% penalty
+export const HEAL_MULT_BUILDING = 0.75; // staffing buildings — 25% penalty
+// idle crew heal at the full rate (×1)
 
 // --- Iron stockpile: storage per building type. When full, extractor output is
 //     wasted — a nudge to spend iron on building or expanding. ---

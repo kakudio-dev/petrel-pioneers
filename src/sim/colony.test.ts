@@ -38,20 +38,20 @@ describe('Colony sim regression suite', () => {
     for (const c of colony.crew) expect(c.health).toBe(C.HEALTH_MAX);
   });
 
-  it('5. gather yields: food has a per-crew carry cap of 5, ore does not', () => {
+  it('5. gather yields: food has a per-crew carry cap (2), ore does not', () => {
     const colony = new Colony(1);
     const z = colony.zones[0];
     const three = colony.crew.slice(0, 3).map((c) => c.id);
     const four = colony.crew.slice(0, 4).map((c) => c.id);
 
-    z.foodAbundance = 100;
-    expect(colony.missionYield('gatherFood', z.id, three)).toBe(15);
-
-    z.foodAbundance = 40;
+    z.foodAbundance = 150; // find 0.02*150=3 > cap 2 -> capped: 3 crew * 2 = 6
     expect(colony.missionYield('gatherFood', z.id, three)).toBe(6);
 
-    z.resourceAbundance = 80;
-    expect(colony.missionYield('gatherResources', z.id, four)).toBe(16);
+    z.foodAbundance = 50; // find 0.02*50=1 < cap -> 3 crew * 1 = 3
+    expect(colony.missionYield('gatherFood', z.id, three)).toBe(3);
+
+    z.resourceAbundance = 80; // ore uncapped: 4 crew * 0.02*80=1.6 = 6.4 -> 6
+    expect(colony.missionYield('gatherResources', z.id, four)).toBe(6);
   });
 
   it('6. season-aware forecast differs from current-abundance yield', () => {
@@ -62,8 +62,10 @@ describe('Colony sim regression suite', () => {
     z.fertility = 0.5;
     z.foodAbundance = 40;
 
-    expect(colony.missionYield('gatherFood', z.id, two)).toBe(4);
-    expect(colony.missionForecast('gatherFood', z.id, two)).toBe(9);
+    // current abundance 40: 2 crew * 0.02*40=0.8 = 1.6 -> 2
+    expect(colony.missionYield('gatherFood', z.id, two)).toBe(2);
+    // projected into next season's growth (food 40->90): 2 crew * 0.02*90=1.8 = 3.6 -> 4
+    expect(colony.missionForecast('gatherFood', z.id, two)).toBe(4);
   });
 
   it('7. health drains a full bar per season when starving', () => {
@@ -156,8 +158,9 @@ describe('Colony sim regression suite', () => {
     });
     colony.step(0.1);
 
-    expect(colony.iron).toBe(8);
-    expect(z.resourceAbundance).toBe(72);
+    // 2 crew find 2 * 0.02*80 = 3.2 -> delivered round 3; abundance 80 - 3.2 = 76.8 -> 77
+    expect(colony.iron).toBe(3);
+    expect(z.resourceAbundance).toBe(77);
   });
 
   it('12. food foragers do not starve — they heal at mission rate mid-famine', () => {
@@ -220,12 +223,12 @@ describe('Colony sim regression suite', () => {
     const colony = new Colony(1);
     const z = colony.zones[0];
     const c = colony.crew[0];
-    c.skills.explorer.level = 2; // +2 food carry, +2% find
+    c.skills.explorer.level = 2; // find 0.02+0.02=0.04, carry cap 2+2=4
 
-    z.foodAbundance = 100; // find 0.07*100=7, carry cap 5+2=7 -> min = 7
-    expect(colony.missionYield('gatherFood', z.id, [c.id])).toBe(7);
+    z.foodAbundance = 100; // find 0.04*100=4, cap 4 -> min = 4
+    expect(colony.missionYield('gatherFood', z.id, [c.id])).toBe(4);
 
-    z.resourceAbundance = 80; // ore 0.07*80 = 5.6 -> round 6 (no carry cap)
-    expect(colony.missionYield('gatherResources', z.id, [c.id])).toBe(6);
+    z.resourceAbundance = 80; // ore 0.04*80 = 3.2 -> round 3 (no carry cap)
+    expect(colony.missionYield('gatherResources', z.id, [c.id])).toBe(3);
   });
 });

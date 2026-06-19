@@ -119,8 +119,8 @@ export const CREW_REQ: Record<BuildingType, number> = {
 // A gather run can take any number of crew. On completion each crew finds CREW_FIND_RATE
 // of the zone's current abundance; that same total is subtracted from the abundance. For
 // food, each crew can carry at most CREW_CARRY_FOOD home (the rest of the find is lost).
-export const CREW_FIND_RATE = 0.05; // share of current abundance each crew finds per run
-export const CREW_CARRY_FOOD = 5; // max food a single crew can carry back from a run (level 0)
+export const CREW_FIND_RATE = 0.02; // share of current abundance each crew finds per run
+export const CREW_CARRY_FOOD = 2; // max food a single crew can carry back from a run (level 0)
 export const EXPLORE_DURATION = 22; // seconds to discover a new zone
 export const GATHER_DURATION = 26; // seconds for a gather run
 export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log

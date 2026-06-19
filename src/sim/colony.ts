@@ -364,7 +364,55 @@ export class Colony {
     // 1. Staffing (priority order = list order): crew fills buildings top-to-bottom.
     this.assignStaffing(active);
 
-    // 2. Power grid. Production from staffed producers; consumers draw draw×staffing.
+    // 2-3. Power grid: fund consumers from generation then battery.
+    const power = this.stepPower(active, dt);
+
+    // 4. Food larder (depends on each building's powerLevel set during the power phase).
+    const foodResult = this.stepFood(active, dt);
+
+    // 4b. Crew health (depends on the starving result from the food phase).
+    this.stepHealth(foodResult.starving, dt);
+
+    // 4c. Death (depends on health drained in the health phase).
+    this.stepDeaths();
+
+    // 5. Housing capacity.
+    const housingCap = this.stepHousing(active);
+
+    // 7. Iron from extractors.
+    const ironResult = this.stepIron(active, dt);
+
+    // Flows for the UI. Every standing consumer draws full power, so all of them
+    // count toward the grid load.
+    const poweredCount = power.consumers.filter((b) => b.powerLevel >= 0.999).length;
+    f.energyProduction = power.production;
+    f.energyConsumption = power.demand;
+    f.energyNet = (this.E - energyBefore) / dt;
+    f.poweredCount = poweredCount;
+    f.consumerCount = power.consumers.length;
+    f.storageWasted = power.storageWasted;
+    f.brownout = poweredCount < power.consumers.length;
+    f.ironProduced = ironResult.ironProduced;
+    f.ironNet = ironResult.ironWasted ? 0 : ironResult.ironProduced;
+    f.ironWasted = ironResult.ironWasted;
+    f.foodProduction = foodResult.foodProduction;
+    f.foodConsumption = foodResult.foodConsumption;
+    f.foodNet = (this.food - foodBefore) / dt;
+    f.foodRatio = foodResult.foodRatio;
+    f.starving = foodResult.starving;
+    f.crewCap = housingCap;
+    f.buildingCrew = this.buildingCrew;
+    this.flows = f;
+  }
+
+  /** Power grid. Production from staffed producers; consumers draw their full draw as
+   *  long as they're standing. Fund consumers in priority order — generation first, then
+   *  the battery — recording each building's split so the UI can show generated vs stored.
+   *  Mutates each building's powerLevel/genPower/batPower and this.E. */
+  private stepPower(
+    active: Building[],
+    dt: number,
+  ): { production: number; demand: number; consumers: Building[]; storageWasted: boolean } {
     let production = 0;
     for (const b of active) production += C.ENERGY_PRODUCTION[b.type] * b.staffing;
     // A built consumer draws its FULL power as long as it's standing — whether or
@@ -373,8 +421,6 @@ export class Colony {
     let demand = 0;
     for (const b of consumers) demand += C.ENERGY_DRAW[b.type];
 
-    // 3. Fund consumers in priority order — generation first, then the battery —
-    //    recording each building's split so the UI can show generated vs stored.
     const cap = this.energyCap;
     let gen = production; // generation budget (rate)
     const batAvail = this.E / dt; // most the battery can supply this tick (rate)
@@ -406,9 +452,15 @@ export class Colony {
         b.batPower = 0;
       }
     }
+    return { production, demand, consumers, storageWasted };
+  }
 
-    // 4. Food larder: greenhouses grow it (per-building power & staffing). Gather-food
-    //    missions deliver food in batches on completion, not continuously.
+  /** Food larder: greenhouses grow it (per-building power & staffing). Gather-food
+   *  missions deliver food in batches on completion, not continuously. Mutates this.food. */
+  private stepFood(
+    active: Building[],
+    dt: number,
+  ): { foodProduction: number; foodConsumption: number; foodRatio: number; starving: boolean } {
     let foodProduction = 0;
     const fertility = this.fertilityFactor;
     for (const b of active) {
@@ -434,10 +486,13 @@ export class Colony {
       foodRatio = foodConsumption > 0 ? clamp(foodProduction / foodConsumption, 0, 1) : 1;
       this.food = 0;
     }
+    return { foodProduction, foodConsumption, foodRatio, starving };
+  }
 
-    // 4b. Crew health: drains a full bar over a season when starving (uniform), recovers
-    //     over two seasons when fed — but healing slows with exertion: ×0.5 away on a
-    //     mission, ×0.75 staffing buildings, ×1 when idle.
+  /** Crew health: drains a full bar over a season when starving (uniform), recovers
+   *  over two seasons when fed — but healing slows with exertion: ×0.5 away on a
+   *  mission, ×0.75 staffing buildings, ×1 when idle. */
+  private stepHealth(starving: boolean, dt: number): void {
     if (starving) {
       const drain = (-C.HEALTH_DRAIN_PER_SEASON / C.SEASON_LENGTH) * dt;
       for (const c of this.crew) c.health = clamp(c.health + drain, 0, C.HEALTH_MAX);
@@ -452,10 +507,12 @@ export class Colony {
         c.health = clamp(c.health + heal * mult, 0, C.HEALTH_MAX);
       }
     }
+  }
 
-    // 4c. Death: a crew member dies only when their health reaches 0. (Starvation kills
-    //     by draining health, not on a separate timer.) Dead crew leave any mission they
-    //     were on; a mission left with no crew is abandoned.
+  /** Death: a crew member dies only when their health reaches 0. (Starvation kills
+   *  by draining health, not on a separate timer.) Dead crew leave any mission they
+   *  were on; a mission left with no crew is abandoned. */
+  private stepDeaths(): void {
     if (this.crew.some((c) => c.health <= 0)) {
       const deadIds = new Set(this.crew.filter((c) => c.health <= 0).map((c) => c.id));
       this.crew = this.crew.filter((c) => !deadIds.has(c.id));
@@ -463,15 +520,21 @@ export class Colony {
       this.activeMissions = this.activeMissions.filter((m) => m.crewIds.length > 0);
     }
     if (this.crew.length === 0) this.failed = true;
+  }
 
-    // 5. Housing capacity (each habitat throttled by its own power). Crew no longer
-    //    grows automatically — the roster is fixed until arrivals are added.
+  /** Housing capacity (each habitat throttled by its own power). Crew no longer
+   *  grows automatically — the roster is fixed until arrivals are added. */
+  private stepHousing(active: Building[]): number {
     let housingCap = 0;
     for (const b of active) {
       housingCap += b.type === 'habitat' ? b.capacity * b.powerLevel : b.capacity;
     }
+    return housingCap;
+  }
 
-    // 7. Iron from extractors (staffing × its power), capped by the stockpile.
+  /** Iron from extractors (staffing × its power), capped by the stockpile.
+   *  Mutates this.iron. */
+  private stepIron(active: Building[], dt: number): { ironProduced: number; ironWasted: boolean } {
     let ironProduced = 0;
     const oreRichness = this.oreFactor;
     for (const b of active) {
@@ -484,28 +547,7 @@ export class Colony {
       this.iron = ironCap;
       ironWasted = ironProduced > 0;
     }
-
-    // Flows for the UI. Every standing consumer draws full power, so all of them
-    // count toward the grid load.
-    const poweredCount = consumers.filter((b) => b.powerLevel >= 0.999).length;
-    f.energyProduction = production;
-    f.energyConsumption = demand;
-    f.energyNet = (this.E - energyBefore) / dt;
-    f.poweredCount = poweredCount;
-    f.consumerCount = consumers.length;
-    f.storageWasted = storageWasted;
-    f.brownout = poweredCount < consumers.length;
-    f.ironProduced = ironProduced;
-    f.ironNet = ironWasted ? 0 : ironProduced;
-    f.ironWasted = ironWasted;
-    f.foodProduction = foodProduction;
-    f.foodConsumption = foodConsumption;
-    f.foodNet = (this.food - foodBefore) / dt;
-    f.foodRatio = foodRatio;
-    f.starving = starving;
-    f.crewCap = housingCap;
-    f.buildingCrew = this.buildingCrew;
-    this.flows = f;
+    return { ironProduced, ironWasted };
   }
 
   private processProjects(dt: number): void {

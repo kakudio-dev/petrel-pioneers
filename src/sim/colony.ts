@@ -395,7 +395,13 @@ export class Colony {
       if (base === 0) continue;
       foodProduction += base * b.staffing * b.powerLevel * fertility;
     }
-    const foodConsumption = this.crew.length * C.FOOD_PER_CREW;
+    // Crew away on a Gather Food run forage for themselves — they don't draw the larder.
+    const foragers = new Set<number>();
+    for (const m of this.activeMissions) {
+      if (m.type === 'gatherFood') for (const id of m.crewIds) foragers.add(id);
+    }
+    const eatingCrew = Math.max(0, this.crew.length - foragers.size);
+    const foodConsumption = eatingCrew * C.FOOD_PER_CREW;
     const foodCap = this.foodCap;
     const tentativeF = this.food + (foodProduction - foodConsumption) * dt;
     let foodRatio = 1;

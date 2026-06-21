@@ -200,4 +200,4 @@ export const EXPAND_COST_GROWTH = 1.7; // escalating: the difficulty curve lives
 export const START_E = 200; // start mid-battery
 export const START_IRON = 0;
 export const START_CREW = 6;
-export const START_FOOD = FOOD_STORAGE.command; // start with a full larder (30)
+export const START_FOOD = 100; // start with a partly-stocked larder (cap is FOOD_STORAGE.command, 250)

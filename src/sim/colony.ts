@@ -881,7 +881,7 @@ function makeZone(name: string, kind: string, home: boolean, rng: Rng, season: n
     oreRichness,
     // food seeds from the seasonal cycle; ore starts at its geological ceiling
     foodAbundance: seasonalFoodStart(fertility, season),
-    resourceAbundance: Math.round(oreRichness * C.MAX_ABUNDANCE),
+    resourceAbundance: Math.round(oreRichness * C.MAX_ABUNDANCE * C.ORE_ABUNDANCE_MULT),
   };
 }
 

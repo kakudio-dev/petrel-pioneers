@@ -152,6 +152,7 @@ export const FIND_PER_LEVEL = 0.01; // +1% find share per Explorer level
 // Abundance is a 0..MAX_ABUNDANCE score. Seasons change it discretely; an active gather
 // party depletes it continuously while working the zone.
 export const MAX_ABUNDANCE = 100;
+export const ORE_ABUNDANCE_MULT = 10; // a zone's starting ore abundance = ore richness × this × 100
 // Food abundance change applied once each time the colony ENTERS a season (index matches
 // SEASONS: Thaw, Highsun, Wane, Dark). Growth ADDS a fraction of the zone's fertility
 // score; decay REMOVES a fraction of current abundance. There is no upper cap — the

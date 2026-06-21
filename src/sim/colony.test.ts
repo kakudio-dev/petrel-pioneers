@@ -21,7 +21,8 @@ describe('Colony sim regression suite', () => {
     expect(fertPct + orePct).toBe(100);
     expect(fertPct).toBeGreaterThanOrEqual(40);
     expect(fertPct).toBeLessThanOrEqual(60);
-    expect(z.resourceAbundance).toBe(orePct); // ore is unaffected by seasons
+    // ore abundance starts at 10× the ore richness and is unaffected by seasons
+    expect(z.resourceAbundance).toBe(Math.round(z.oreRichness * C.MAX_ABUNDANCE * C.ORE_ABUNDANCE_MULT));
     // food is seeded from the seasonal cycle (Thaw at game start), not the flat fertility ceiling
     const F = z.fertility * C.MAX_ABUNDANCE;
     const base = C.SEASON_FOOD_GROWTH.reduce((a, g) => a + g, 0) * F * C.SEASON_FOOD_DECAY.reduce((p, d) => p * (1 - d), 1);

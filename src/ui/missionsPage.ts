@@ -3,7 +3,9 @@ import type { CrewMember } from '../sim/types';
 import type { SkillId } from '../sim/types';
 import { healthColor, secs } from './format';
 import { xpToNext } from '../sim/skills';
-import { SKILLS } from '../sim/config';
+import { SKILLS, MISSION_LENGTHS, type MissionLength } from '../sim/config';
+
+const LENGTH_LABELS: Record<MissionLength, string> = { short: 'Short', regular: 'Regular', long: 'Long' };
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -50,18 +52,21 @@ export function createMissionsPage(colony: Colony) {
   if (home) openZones.add(home.id);
   const openMissions = new Set<number>(); // active missions expanded to show their crew
   const teams = new Map<string, Set<number>>(); // open mission setup -> staged crew
+  const lengths = new Map<string, MissionLength>(); // open mission setup -> chosen length
+  const lengthOf = (key: string): MissionLength => lengths.get(key) ?? 'regular';
   let activeSig = '';
   let zoneSig = '';
   let recentSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement; phase: HTMLElement }>();
 
   // Pre-launch preview: what the party would bring back and roughly how long a round trip takes.
-  function previewText(type: MissionType, zoneId: number | null, crewIds: number[]): string {
+  function previewText(type: MissionType, zoneId: number | null, crewIds: number[], length: MissionLength): string {
+    const seasons = MISSION_LENGTHS[length];
+    const eta = secs(colony.estimateRunSeconds(type, zoneId, crewIds, seasons));
     if (type === 'explore')
-      return colony.zonesRemaining ? `Discover a new zone · ~${secs(colony.estimateRunSeconds(type, zoneId, crewIds))}` : 'Region fully explored';
+      return colony.zonesRemaining ? `Discover a new zone · ~${eta}` : 'Region fully explored';
     const unit = type === 'gatherFood' ? 'food' : 'ore';
-    const cap = colony.partyCapacity(crewIds);
-    return `holds ${cap} ${unit} · ~${secs(colony.estimateRunSeconds(type, zoneId, crewIds))} round trip`;
+    return `hold ${colony.partyCapacity(crewIds)} ${unit} · ~${eta} round trip`;
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
@@ -92,9 +97,9 @@ export function createMissionsPage(colony: Colony) {
   }
 
   // Launch a mission and clear the committed crew from any other pending setups.
-  function commitLaunch(type: MissionType, zoneId: number | null, crewIds: number[]) {
+  function commitLaunch(type: MissionType, zoneId: number | null, crewIds: number[], length: MissionLength) {
     if (crewIds.length === 0) return;
-    colony.launchMission(type, zoneId, crewIds);
+    colony.launchMission(type, zoneId, crewIds, MISSION_LENGTHS[length]);
     for (const [, t] of teams) for (const id of crewIds) t.delete(id);
     renderZones();
   }
@@ -127,10 +132,21 @@ export function createMissionsPage(colony: Colony) {
     const addRow = canAdd
       ? '<button class="crew-add"><span class="msym">person_add</span> Add crew</button>'
       : '';
+    // explore is a fixed there-and-back; gather missions let the player pick how long to provision for
+    const lengthToggle =
+      type === 'explore'
+        ? ''
+        : `<div class="length-toggle">${(Object.keys(MISSION_LENGTHS) as MissionLength[])
+            .map(
+              (l) =>
+                `<button class="len-btn${lengthOf(key) === l ? ' active' : ''}" data-len="${l}">${LENGTH_LABELS[l]}</button>`,
+            )
+            .join('')}</div>`;
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
       <div class="mcrew-list">${rows}${addRow || (rows ? '' : '<div class="empty">No crew available.</div>')}</div>
+      ${lengthToggle}
       <div class="setup-foot">
-        <span class="setup-preview">${previewText(type, zoneId, [...t])}</span>
+        <span class="setup-preview">${previewText(type, zoneId, [...t], lengthOf(key))}</span>
         <button class="setup-launch">Launch</button>
       </div>
     </div>`;
@@ -225,13 +241,21 @@ export function createMissionsPage(colony: Colony) {
           if (add) team.add(add.id);
           rerender();
         });
+      setupEl.querySelectorAll('.len-btn').forEach((btn) =>
+        btn.addEventListener('click', () => {
+          lengths.set(key, (btn as HTMLElement).dataset.len as MissionLength);
+          rerender();
+        }),
+      );
       const launch = setupEl.querySelector('.setup-launch') as HTMLButtonElement;
       launch.disabled = team.size < 1;
       launch.addEventListener('click', () => {
         const committed = [...team];
         if (committed.length === 0) return;
+        const length = lengthOf(key);
         teams.delete(key);
-        commitLaunch(type, zoneId, committed);
+        lengths.delete(key);
+        commitLaunch(type, zoneId, committed, length);
         rerender();
       });
     });
@@ -295,19 +319,20 @@ export function createMissionsPage(colony: Colony) {
       const r = fills.get(m.id);
       if (!r) continue;
       const unit = m.type === 'gatherFood' ? 'food' : 'ore';
+      const rations = m.starving ? 'out of food!' : `rations ${Math.ceil(m.provisions)}`;
       let progress = 1;
       let phaseText = '';
       if (m.phase === 'outbound') {
         progress = m.travelTime > 0 ? m.phaseElapsed / m.travelTime : 1;
-        phaseText = m.type === 'explore' ? 'Scouting' : 'Traveling out';
+        phaseText = `${m.type === 'explore' ? 'Scouting' : 'Traveling out'} · ${rations}`;
       } else if (m.phase === 'gathering') {
         const cap = colony.partyCapacity(m.crewIds);
-        progress = cap > 0 ? m.cargo / cap : 1;
-        phaseText = `Gathering · ${Math.floor(m.cargo)}/${cap} ${unit}`;
+        progress = cap > 0 ? (m.provisions + m.cargo) / cap : 1;
+        phaseText = `Gathering · ${Math.floor(m.cargo)} ${unit} · ${rations}`;
       } else {
         progress = m.returnTime > 0 ? m.phaseElapsed / m.returnTime : 1;
         phaseText =
-          m.type === 'explore' ? 'Returning' : `Returning · ${Math.round(m.cargo)} ${unit}`;
+          m.type === 'explore' ? `Returning · ${rations}` : `Returning · ${Math.round(m.cargo)} ${unit}`;
       }
       r.fill.style.width = `${Math.min(100, progress * 100)}%`;
       r.phase.textContent = phaseText;

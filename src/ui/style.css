@@ -222,6 +222,13 @@ body {
 .setup-pick { font-size: 12px; color: var(--ink-dim); margin-top: 10px; }
 .setup-foot { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .setup-preview { font-size: 12px; color: var(--ink-dim); margin-right: auto; }
+.length-toggle { display: flex; gap: 6px; margin-top: 10px; }
+.len-btn {
+  flex: 1; padding: 5px 4px; font-size: 11px; border-radius: 6px; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink-dim);
+}
+.len-btn:hover { border-color: var(--accent); }
+.len-btn.active { border-color: var(--accent); color: var(--accent); background: #16242f; }
 
 /* zones — full-width expandable rows */
 .zone-list { display: flex; flex-direction: column; gap: 8px; }

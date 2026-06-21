@@ -116,11 +116,11 @@ export const CREW_REQ: Record<BuildingType, number> = {
 };
 
 // --- Missions (zone expeditions that play out over time) ---
-// A party travels out (travel time = zone distance), gathers continuously until its hold
-// is full, then travels back and delivers. Gather rate rises with abundance and the
-// party's find skill; what it gathers is removed from the zone's abundance as it goes.
+// A party carries food rations (from the larder) and eats them as it goes; it travels out
+// (travel time = zone distance), gathers until its hold is full or it's down to the food it
+// needs to get home, then returns and delivers. Rations and gathered cargo share one hold.
 export const CREW_FIND_RATE = 0.02; // a crew's find "share" (feeds the gather rate), level 0
-export const CREW_CARRY_FOOD = 2; // a crew's hold size — how much cargo it can carry (level 0)
+export const CREW_CARRY_FOOD = 20; // a crew's hold size — rations + cargo combined (level 0)
 export const GATHER_RATE_SCALE = 0.1; // cargo/sec = (party find share) × abundance × this
 export const TRAVEL_SECONDS_PER_DISTANCE = 2; // one-way travel seconds per distance unit
 export const EXPLORE_DISTANCE = 5; // how far a scout ranges out (target zone is unknown)
@@ -128,6 +128,9 @@ export const ZONE_DISTANCE_RANGE: [number, number] = [3, 10]; // distance from t
 export const GATHER_XP_PER_SEC = 1; // Explorer XP/sec each crew earns while gathering
 export const EXPLORE_XP = 25; // Explorer XP each crew earns for a completed explore run
 export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log
+// Mission length presets — how many seasons of rations the party provisions for.
+export const MISSION_LENGTHS = { short: 0.25, regular: 0.5, long: 1 } as const;
+export type MissionLength = keyof typeof MISSION_LENGTHS;
 
 // --- Skills & leveling (generic — add a skill by extending SkillId + this table, then
 //     awarding its XP somewhere). Each level costs `baseXp` more than the last. ---

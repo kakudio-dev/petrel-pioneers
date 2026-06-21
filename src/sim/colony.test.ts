@@ -47,18 +47,20 @@ describe('Colony sim regression suite', () => {
     expect(colony.travelTime('gatherFood', colony.zones[0].id)).toBe(5 * C.TRAVEL_SECONDS_PER_DISTANCE);
   });
 
-  it('6. a gather run fills its hold, returns, and delivers; abundance drops by the cargo', () => {
+  it('6. a gather run draws rations, delivers ore, and works the zone', () => {
     const colony = new Colony(1);
     const z = colony.zones[0]; // home -> no travel
     z.resourceAbundance = 100;
     colony.iron = 0;
-    colony.launchMission('gatherResources', z.id, [colony.crew[0].id]); // hold 2
-    for (let i = 0; i < 2000 && colony.activeMissions.length; i++) colony.step(0.1);
+    colony.food = 100;
+    const foodBefore = colony.food;
+    colony.launchMission('gatherResources', z.id, [colony.crew[0].id]);
+    expect(foodBefore - colony.food).toBeGreaterThan(0); // rations taken from the larder
+    for (let i = 0; i < 3000 && colony.activeMissions.length; i++) colony.step(0.1);
 
-    expect(colony.iron).toBe(2); // a full hold delivered
-    expect(z.resourceAbundance).toBeCloseTo(98, 1); // depleted by the 2 gathered
-    expect(colony.completedMissions[0].amount).toBe(2);
-    expect(colony.completedMissions[0].duration).toBeGreaterThan(0); // records how long it took
+    expect(colony.iron).toBeGreaterThan(0); // delivered ore
+    expect(z.resourceAbundance).toBeLessThan(100); // zone worked
+    expect(colony.completedMissions[0].duration).toBeGreaterThan(0);
   });
 
   it('7. health drains a full bar per season when starving', () => {
@@ -83,6 +85,9 @@ describe('Colony sim regression suite', () => {
       travelTime: 0,
       returnTime: 9999,
       cargo: 0,
+      provisions: 9999, // well-stocked, so it never starves during the test
+      lengthSeasons: 0.5,
+      starving: false,
       startedAt: 0,
     });
     colony.crew[0].health = 50;
@@ -110,33 +115,32 @@ describe('Colony sim regression suite', () => {
     for (const c of colony.crew) expect(c.health).toBeGreaterThan(0);
   });
 
-  it('10. foragers do not eat from the larder', () => {
+  it('10. away crew eat mission rations, not the larder', () => {
     const colony = new Colony(1);
     colony.step(0.1);
-    expect(colony.flows.foodConsumption).toBeCloseTo(6 * (10 / 60), 5); // all 6 eat
+    expect(colony.flows.foodConsumption).toBeCloseTo(6 * (10 / 60), 5); // all 6 home -> all draw larder
 
-    const parked = { phase: 'returning' as const, phaseElapsed: 0, travelTime: 0, returnTime: 9999, cargo: 0, startedAt: 0 };
+    const parked = {
+      phase: 'returning' as const,
+      phaseElapsed: 0,
+      travelTime: 0,
+      returnTime: 9999,
+      cargo: 0,
+      provisions: 9999,
+      lengthSeasons: 0.5,
+      starving: false,
+      startedAt: 0,
+    };
     colony.activeMissions.push({
       id: 1,
-      type: 'gatherFood',
+      type: 'gatherResources',
       zoneId: colony.zones[0].id,
       crewIds: [colony.crew[0].id, colony.crew[1].id, colony.crew[2].id],
       ...parked,
     });
     colony.step(0.1);
-    expect(colony.flows.foodConsumption).toBeCloseTo(3 * (10 / 60), 5); // only 3 eat
-
-    colony.activeMissions = [
-      {
-        id: 2,
-        type: 'gatherResources',
-        zoneId: colony.zones[0].id,
-        crewIds: [colony.crew[0].id, colony.crew[1].id, colony.crew[2].id],
-        ...parked,
-      },
-    ];
-    colony.step(0.1);
-    expect(colony.flows.foodConsumption).toBeCloseTo(6 * (10 / 60), 5); // resource crew still eat
+    // any mission type: the 3 away live off rations, only the 3 at home draw the larder
+    expect(colony.flows.foodConsumption).toBeCloseTo(3 * (10 / 60), 5);
   });
 
   it('11. recall while outbound returns over the distance already traveled', () => {
@@ -154,7 +158,7 @@ describe('Colony sim regression suite', () => {
     expect(m.returnTime).toBeCloseTo(3, 1); // only the time already spent traveling
   });
 
-  it('12. food foragers do not starve — they heal at mission rate mid-famine', () => {
+  it('12. away crew live off rations — they heal at mission rate even mid-famine', () => {
     const colony = new Colony(1);
     const forager = colony.crew[0];
     const stuck = colony.crew[1];
@@ -168,6 +172,9 @@ describe('Colony sim regression suite', () => {
       travelTime: 0,
       returnTime: 9999,
       cargo: 0,
+      provisions: 9999, // stocked with rations -> away crew stays fed
+      lengthSeasons: 0.5,
+      starving: false,
       startedAt: 0,
     });
     forager.health = 50;
@@ -208,18 +215,12 @@ describe('Colony sim regression suite', () => {
     expect(c.skills.explorer.xp).toBeCloseTo(4 * C.GATHER_XP_PER_SEC * 0.1, 5);
   });
 
-  it('15. Explorer levels raise hold size (delivers a bigger full hold)', () => {
+  it('15. Explorer levels raise hold size (+1 per level)', () => {
     const colony = new Colony(1);
-    const z = colony.zones[0];
     const c = colony.crew[0];
-    c.skills.explorer.level = 3; // hold 2 + 3 = 5
-    expect(colony.partyCapacity([c.id])).toBe(5);
-
-    z.resourceAbundance = 100;
-    colony.iron = 0;
-    colony.launchMission('gatherResources', z.id, [c.id]);
-    for (let i = 0; i < 2000 && colony.activeMissions.length; i++) colony.step(0.1);
-    expect(colony.iron).toBe(5); // a full (bigger) hold
+    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY_FOOD); // level 0
+    c.skills.explorer.level = 3;
+    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY_FOOD + 3);
   });
 
   it('16. recall while gathering takes a full travel leg home', () => {
@@ -235,5 +236,31 @@ describe('Colony sim regression suite', () => {
     colony.recallMission(m.id);
     expect(m.phase).toBe('returning');
     expect(m.returnTime).toBe(6); // full distance back
+  });
+
+  it('17. a net-positive food run only provisions for the trip out', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0];
+    z.distance = 5;
+    z.foodAbundance = 100; // collection rate > consumption for one crew
+    const cons = 1 * C.FOOD_PER_CREW;
+    const travel = colony.travelTime('gatherFood', z.id);
+    const need = colony.provisionsNeeded('gatherFood', z.id, [colony.crew[0].id], 0.5);
+    expect(need).toBeCloseTo(cons * travel, 5); // just enough to reach the zone
+  });
+
+  it('18. rations come from the larder and unused ones return on completion', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0];
+    z.distance = 5;
+    colony.food = 100;
+    const before = colony.food;
+    colony.launchMission('gatherResources', z.id, [colony.crew[0].id]);
+    const taken = before - colony.food;
+    expect(taken).toBeGreaterThan(0); // rations drawn from the larder
+
+    colony.recallMission(colony.activeMissions[0].id); // turn around immediately (barely ate)
+    for (let i = 0; i < 10 && colony.activeMissions.length; i++) colony.step(0.1);
+    expect(colony.food).toBeGreaterThan(before - taken); // most rations returned to the larder
   });
 });

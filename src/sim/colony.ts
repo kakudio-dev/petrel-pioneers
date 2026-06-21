@@ -105,7 +105,7 @@ export class Colony {
     this.rng = seed === undefined ? Math.random : mulberry32(seed);
     this.buildings.push(makeBuilding('command', 'active'));
     for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i));
-    this.zones.push(makeZone(C.HOME_ZONE_NAME, C.HOME_ZONE_KIND, true, this.rng));
+    this.zones.push(makeZone(C.HOME_ZONE_NAME, C.HOME_ZONE_KIND, true, this.rng, this.season));
   }
 
   // --- Derived getters ---
@@ -353,7 +353,7 @@ export class Colony {
     if (!this.zonesRemaining) return undefined;
     const name = C.ZONE_NAMES[this.discoveredCount];
     const kind = C.ZONE_KINDS[Math.floor(this.rng() * C.ZONE_KINDS.length)];
-    this.zones.push(makeZone(name, kind, false, this.rng));
+    this.zones.push(makeZone(name, kind, false, this.rng, this.season));
     return name;
   }
 
@@ -824,7 +824,22 @@ function emptyFlows(): Flows {
   };
 }
 
-function makeZone(name: string, kind: string, home: boolean, rng: Rng): Zone {
+/** A new zone's starting food abundance, seeded from where the seasonal cycle sits. The
+ *  base is a steady-state estimate — a year's worth of growth (Thaw + Highsun) run through
+ *  the autumn/winter decay (Wane × Dark) — then the cycle is replayed from Thaw up to the
+ *  current season. At game start (Thaw) that adds one more Thaw growth on top of the base. */
+function seasonalFoodStart(fertility: number, season: number): number {
+  const fertScore = fertility * C.MAX_ABUNDANCE;
+  const totalGrowth = C.SEASON_FOOD_GROWTH.reduce((sum, g) => sum + g, 0);
+  const decayProduct = C.SEASON_FOOD_DECAY.reduce((p, d) => p * (1 - d), 1);
+  let food = totalGrowth * fertScore * decayProduct; // base ≈ value entering Thaw
+  for (let i = 0; i <= season; i++) {
+    food = (food + C.SEASON_FOOD_GROWTH[i] * fertScore) * (1 - C.SEASON_FOOD_DECAY[i]);
+  }
+  return Math.round(food);
+}
+
+function makeZone(name: string, kind: string, home: boolean, rng: Rng, season: number): Zone {
   let fertility: number;
   let oreRichness: number;
   if (home) {
@@ -845,8 +860,8 @@ function makeZone(name: string, kind: string, home: boolean, rng: Rng): Zone {
     distance: home ? 0 : rollRange(C.ZONE_DISTANCE_RANGE, rng),
     fertility,
     oreRichness,
-    // abundance is a score starting at the zone's geological ceiling, then depletes as it's worked
-    foodAbundance: Math.round(fertility * C.MAX_ABUNDANCE),
+    // food seeds from the seasonal cycle; ore starts at its geological ceiling
+    foodAbundance: seasonalFoodStart(fertility, season),
     resourceAbundance: Math.round(oreRichness * C.MAX_ABUNDANCE),
   };
 }

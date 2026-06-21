@@ -14,15 +14,19 @@ describe('Colony sim regression suite', () => {
     expect(c.zones[0].fertility).not.toBeCloseTo(a.zones[0].fertility, 5);
   });
 
-  it('2. home geology splits 100 points and abundances mirror geology', () => {
+  it('2. home geology splits 100 points; ore mirrors geology, food seeds from the season', () => {
     const z = new Colony(1).zones[0];
     const fertPct = Math.round(z.fertility * 100);
     const orePct = Math.round(z.oreRichness * 100);
     expect(fertPct + orePct).toBe(100);
     expect(fertPct).toBeGreaterThanOrEqual(40);
     expect(fertPct).toBeLessThanOrEqual(60);
-    expect(z.foodAbundance).toBe(fertPct);
-    expect(z.resourceAbundance).toBe(orePct);
+    expect(z.resourceAbundance).toBe(orePct); // ore is unaffected by seasons
+    // food is seeded from the seasonal cycle (Thaw at game start), not the flat fertility ceiling
+    const F = z.fertility * C.MAX_ABUNDANCE;
+    const base = C.SEASON_FOOD_GROWTH.reduce((a, g) => a + g, 0) * F * C.SEASON_FOOD_DECAY.reduce((p, d) => p * (1 - d), 1);
+    const expectedThaw = Math.round((base + C.SEASON_FOOD_GROWTH[0] * F) * (1 - C.SEASON_FOOD_DECAY[0]));
+    expect(z.foodAbundance).toBe(expectedThaw);
   });
 
   it('3. food cap is the fixed command larder, not crew-scaled', () => {

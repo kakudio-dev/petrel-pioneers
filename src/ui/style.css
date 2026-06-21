@@ -84,11 +84,11 @@ body {
 .crew-health { display: inline-flex; align-items: center; gap: 5px; }
 .crew-health .cbar { width: 60px; }
 .hp-pct { font-size: 11px; color: var(--ink-dim); min-width: 30px; }
-.crew-skill { display: inline-flex; align-items: center; gap: 5px; }
-.crew-skill .skill-icon { font-size: 15px; color: var(--accent); }
+.crew-skill, .mcrew-skill { display: inline-flex; align-items: center; gap: 5px; }
+.crew-skill .skill-icon, .mcrew-skill .skill-icon { font-size: 15px; color: var(--accent); }
 .skill-lv { font-size: 11px; font-weight: 600; min-width: 20px; }
-.crew-skill .cbar.xp { width: 44px; }
-.crew-skill .cbarf.xpf { background: var(--accent); }
+.crew-skill .cbar.xp, .mcrew-skill .cbar.xp { width: 44px; }
+.crew-skill .cbarf.xpf, .mcrew-skill .cbarf.xpf { background: var(--accent); }
 .crew-av {
   width: 26px; height: 26px; border-radius: 50%; background: #1f2a36; color: var(--ink);
   display: flex; align-items: center; justify-content: center; font-weight: 600;
@@ -166,7 +166,7 @@ body {
 /* crew rows (missions setup + active) */
 .mcrew-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .mcrew-row {
-  display: grid; grid-template-columns: 26px minmax(60px, 1fr) auto auto; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: 26px minmax(60px, 1fr) auto auto auto; gap: 12px; align-items: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 12px;
 }
 .mcrew-hp { display: inline-flex; align-items: center; gap: 5px; }

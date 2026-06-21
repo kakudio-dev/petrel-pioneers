@@ -1,6 +1,7 @@
 import type { Colony, CompletedMission, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
 import { healthColor, secs } from './format';
+import { xpToNext } from '../sim/skills';
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -312,20 +313,29 @@ export function createMissionsPage(colony: Colony) {
       renderRecent();
     }
     updateRerunForecasts(); // keep re-run forecasts fresh as seasons/abundance drift
-    updateCrewHp(); // keep HP bars on setup/active crew rows live
+    updateCrewStats(); // keep HP + Explorer level/XP on setup/active crew rows live
   }
 
-  // Live-fill the HP bar on every mission crew row (setup teams + active missions).
-  function updateCrewHp() {
+  // Live-fill HP and the Explorer level/XP bar on every mission crew row.
+  function updateCrewStats() {
     el.querySelectorAll('.mcrew-row[data-crew]').forEach((row) => {
       const c = colony.crew.find((x) => x.id === Number((row as HTMLElement).dataset.crew));
+      if (!c) return;
       const fill = row.querySelector('.cbarf.hp') as HTMLElement | null;
       const pct = row.querySelector('.hp-pct') as HTMLElement | null;
-      if (!c || !fill || !pct) return;
-      const hp = Math.round(c.health);
-      fill.style.width = `${hp}%`;
-      fill.style.background = healthColor(c.health);
-      pct.textContent = `${hp}%`;
+      if (fill && pct) {
+        const hp = Math.round(c.health);
+        fill.style.width = `${hp}%`;
+        fill.style.background = healthColor(c.health);
+        pct.textContent = `${hp}%`;
+      }
+      const lv = row.querySelector('.skill-lv') as HTMLElement | null;
+      const xpFill = row.querySelector('.cbarf.xpf') as HTMLElement | null;
+      if (lv && xpFill) {
+        const sk = c.skills.explorer;
+        lv.textContent = `L${sk.level}`;
+        xpFill.style.width = `${(sk.xp / xpToNext('explorer', sk.level)) * 100}%`;
+      }
     });
   }
 
@@ -392,6 +402,7 @@ function crewRowHTML(c: CrewMember, removable = false): string {
   return `<div class="mcrew-row" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
+    <span class="mcrew-skill" title="Explorer"><span class="msym skill-icon">explore</span><span class="skill-lv"></span><span class="cbar xp"><span class="cbarf xpf"></span></span></span>
     <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
     ${tail}</div>`;
 }

@@ -162,6 +162,11 @@ body {
 .amission .m-prog { width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .amission .m-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 .amission .m-left { font-size: 12px; color: var(--ink-dim); white-space: nowrap; min-width: 28px; }
+.amission-head.clickable { cursor: pointer; }
+.amission .m-chev { color: var(--ink-dim); font-size: 20px; }
+/* active missions are minimized by default — crew show only when expanded */
+.amission .mcrew-list { display: none; }
+.amission.open .mcrew-list { display: flex; }
 
 /* crew rows (missions setup + active) */
 .mcrew-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
@@ -189,10 +194,12 @@ body {
 
 /* recent completed missions log */
 .recent-list { display: flex; flex-direction: column; gap: 6px; }
-.recent-row {
-  display: flex; align-items: center; gap: 12px; padding: 8px 12px;
-  background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+.recent-item {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; overflow: hidden;
 }
+.recent-item.open { border-color: #2d4a5e; }
+.recent-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; }
+.recent-setup { padding: 0 12px 12px; }
 .recent-icon { font-size: 20px; color: var(--accent); }
 .recent-main { flex: 1; min-width: 0; font-size: 13px; }
 .recent-result { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; white-space: nowrap; }
@@ -205,6 +212,7 @@ body {
 }
 .recent-rerun:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .recent-rerun:disabled { opacity: 0.35; cursor: default; }
+.recent-rerun.open { border-color: var(--accent); color: var(--accent); }
 .recent-rerun .msym { font-size: 17px; }
 
 /* setup (inside an expanded zone row) */

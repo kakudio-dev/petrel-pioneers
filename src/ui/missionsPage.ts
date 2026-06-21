@@ -1,7 +1,9 @@
 import type { Colony, CompletedMission, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
+import type { SkillId } from '../sim/types';
 import { healthColor, secs } from './format';
 import { xpToNext } from '../sim/skills';
+import { SKILLS } from '../sim/config';
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -46,6 +48,7 @@ export function createMissionsPage(colony: Colony) {
   const openZones = new Set<number>(); // expanded zone ids (multiple allowed)
   const home = colony.zones.find((z) => z.home); // expand the home zone (The Roost) by default
   if (home) openZones.add(home.id);
+  const openMissions = new Set<number>(); // active missions expanded to show their crew
   const teams = new Map<string, Set<number>>(); // open mission setup -> staged crew
   let activeSig = '';
   let zoneSig = '';
@@ -62,12 +65,14 @@ export function createMissionsPage(colony: Colony) {
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
-  // exclusive when a mission is actually launched. A setup opens with a single
-  // crew member assigned — the player adds or removes more with the stepper.
-  function autoFill(key: string) {
+  // exclusive when a mission is actually launched. A setup opens with `count` free
+  // crew assigned by default — the player adds or removes more.
+  function autoFill(key: string, count = 1) {
     const t = new Set<number>();
-    const first = colony.availableCrew[0];
-    if (first) t.add(first.id);
+    for (const c of colony.availableCrew) {
+      if (t.size >= Math.max(1, count)) break;
+      t.add(c.id);
+    }
     teams.set(key, t);
   }
 
@@ -100,18 +105,23 @@ export function createMissionsPage(colony: Colony) {
     return colony.availableCrew.length > 0;
   }
 
-  // Re-run a logged mission: same type and target zone, with up to the original crew count
-  // drawn from whoever is free now.
-  function rerun(m: CompletedMission) {
-    if (!canRerun(m)) return;
-    const crewIds = colony.availableCrew.slice(0, Math.max(1, m.crew)).map((c) => c.id);
-    commitLaunch(m.type, m.zoneId, crewIds);
+  // The replay button expands the recent mission into the same planning widget used to
+  // create it, pre-filled with the original crew count.
+  function toggleRecent(m: CompletedMission) {
+    const key = `recent:${m.id}`;
+    if (teams.has(key)) teams.delete(key);
+    else {
+      if (!canRerun(m)) return;
+      autoFill(key, m.crew);
+    }
+    renderRecent();
   }
 
   function setupHTML(key: string, type: MissionType, zoneId: number | null): string {
     const t = teams.get(key) ?? new Set<number>();
     const team = colony.crew.filter((c) => t.has(c.id));
-    const rows = team.map((c) => crewRowHTML(c, true)).join('');
+    const skill = colony.missionSkill(type);
+    const rows = team.map((c) => crewRowHTML(c, true, skill)).join('');
     // can add another if any crew is neither away on a mission nor already on this team
     const canAdd = colony.crew.some((c) => !colony.onMission(c.id) && !t.has(c.id));
     const addRow = canAdd
@@ -190,11 +200,11 @@ export function createMissionsPage(colony: Colony) {
     if (canExplore) erow.querySelector('.zrow-head')!.addEventListener('click', () => toggleMission('explore'));
     zoneList.appendChild(erow);
 
-    wireSetups();
+    wireSetups(zoneList, renderZones);
   }
 
-  function wireSetups() {
-    zoneList.querySelectorAll('.setup').forEach((setupEl) => {
+  function wireSetups(container: HTMLElement, rerender: () => void) {
+    container.querySelectorAll('.setup').forEach((setupEl) => {
       const key = (setupEl as HTMLElement).dataset.key!;
       const type = (setupEl as HTMLElement).dataset.mt as MissionType;
       const zraw = (setupEl as HTMLElement).dataset.zone!;
@@ -205,7 +215,7 @@ export function createMissionsPage(colony: Colony) {
       setupEl.querySelectorAll('.crew-remove').forEach((btn) =>
         btn.addEventListener('click', () => {
           team.delete(Number((btn as HTMLElement).dataset.crew));
-          renderZones();
+          rerender();
         }),
       );
       const addBtn = setupEl.querySelector('.crew-add');
@@ -213,7 +223,7 @@ export function createMissionsPage(colony: Colony) {
         addBtn.addEventListener('click', () => {
           const add = colony.availableCrew.find((c) => !team.has(c.id));
           if (add) team.add(add.id);
-          renderZones();
+          rerender();
         });
       const launch = setupEl.querySelector('.setup-launch') as HTMLButtonElement;
       launch.disabled = team.size < 1;
@@ -222,6 +232,7 @@ export function createMissionsPage(colony: Colony) {
         if (committed.length === 0) return;
         teams.delete(key);
         commitLaunch(type, zoneId, committed);
+        rerender();
       });
     });
   }
@@ -239,24 +250,39 @@ export function createMissionsPage(colony: Colony) {
         activeList.innerHTML = '';
         for (const m of colony.activeMissions) {
           const zone = colony.zones.find((z) => z.id === m.zoneId);
+          const skill = colony.missionSkill(m.type);
           const team = m.crewIds
             .map((id) => colony.crew.find((c) => c.id === id))
             .filter(Boolean)
-            .map((c) => crewRowHTML(c as CrewMember))
+            .map((c) => crewRowHTML(c as CrewMember, false, skill))
             .join('');
+          const open = openMissions.has(m.id);
           const card = document.createElement('div');
-          card.className = 'amission';
+          card.className = `amission${open ? ' open' : ''}`;
           card.innerHTML = `
-            <div class="amission-head">
+            <div class="amission-head clickable">
               <span class="msym mission-icon">${ICON[m.type]}</span>
               <span class="amission-name"><b>${LABEL[m.type]}</b> <span class="mission-desc">${zone ? zone.name : 'Uncharted region'}</span></span>
               <span class="m-phase"></span>
               <span class="m-prog"><span class="m-fill"></span></span>
               <span class="m-left"></span>
               <button class="m-recall">Recall</button>
+              <span class="msym m-chev">${open ? 'expand_less' : 'expand_more'}</span>
             </div>
             <div class="mcrew-list">${team}</div>`;
-          card.querySelector('.m-recall')!.addEventListener('click', () => colony.recallMission(m.id));
+          const recall = card.querySelector('.m-recall') as HTMLElement;
+          recall.addEventListener('click', (e) => {
+            e.stopPropagation();
+            colony.recallMission(m.id);
+          });
+          const chev = card.querySelector('.m-chev') as HTMLElement;
+          card.querySelector('.amission-head')!.addEventListener('click', () => {
+            const nowOpen = !openMissions.has(m.id);
+            if (nowOpen) openMissions.add(m.id);
+            else openMissions.delete(m.id);
+            card.classList.toggle('open', nowOpen);
+            chev.textContent = nowOpen ? 'expand_less' : 'expand_more';
+          });
           activeList.appendChild(card);
           fills.set(m.id, {
             fill: card.querySelector('.m-fill') as HTMLElement,
@@ -329,12 +355,14 @@ export function createMissionsPage(colony: Colony) {
         fill.style.background = healthColor(c.health);
         pct.textContent = `${hp}%`;
       }
-      const lv = row.querySelector('.skill-lv') as HTMLElement | null;
-      const xpFill = row.querySelector('.cbarf.xpf') as HTMLElement | null;
-      if (lv && xpFill) {
-        const sk = c.skills.explorer;
+      const skillEl = row.querySelector('.mcrew-skill') as HTMLElement | null;
+      const lv = skillEl?.querySelector('.skill-lv') as HTMLElement | null;
+      const xpFill = skillEl?.querySelector('.cbarf.xpf') as HTMLElement | null;
+      if (skillEl && lv && xpFill) {
+        const skillId = skillEl.dataset.skill as SkillId;
+        const sk = c.skills[skillId];
         lv.textContent = `L${sk.level}`;
-        xpFill.style.width = `${(sk.xp / xpToNext('explorer', sk.level)) * 100}%`;
+        xpFill.style.width = `${(sk.xp / xpToNext(skillId, sk.level)) * 100}%`;
       }
     });
   }
@@ -345,14 +373,24 @@ export function createMissionsPage(colony: Colony) {
       recentList.innerHTML = '<div class="empty">No completed missions yet.</div>';
       return;
     }
-    recentList.innerHTML = log.map((m, i) => recentRowHTML(m, i, canRerun(m))).join('');
+    recentList.innerHTML = log
+      .map((m) => {
+        const key = `recent:${m.id}`;
+        const open = teams.has(key);
+        const setup = open ? `<div class="recent-setup">${setupHTML(key, m.type, m.zoneId)}</div>` : '';
+        return `<div class="recent-item${open ? ' open' : ''}">${recentRowHTML(m, canRerun(m), open)}${setup}</div>`;
+      })
+      .join('');
     recentList.querySelectorAll('.recent-rerun').forEach((btn) =>
-      btn.addEventListener('click', () => {
-        const m = colony.completedMissions[Number((btn as HTMLElement).dataset.idx)];
-        if (m) rerun(m);
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const m = colony.completedMissions.find((x) => x.id === Number((btn as HTMLElement).dataset.mid));
+        if (m) toggleRecent(m);
       }),
     );
+    wireSetups(recentList, renderRecent);
     updateRerunForecasts();
+    updateCrewStats();
   }
 
   // Live: the hold size and round-trip time a re-run would have, using the crew it would
@@ -375,11 +413,11 @@ export function createMissionsPage(colony: Colony) {
   return { el, update };
 }
 
-function recentRowHTML(m: CompletedMission, idx: number, rerunnable: boolean): string {
+function recentRowHTML(m: CompletedMission, rerunnable: boolean, open: boolean): string {
   let sub: string;
   let got: string;
-  // `recent-again` is filled live with the season-aware forecast for re-running now
-  const again = m.type === 'explore' ? '' : `<span class="recent-again" data-again="${m.id}"></span>`;
+  // collapsed-only: `recent-again` shows the live re-run forecast (hidden while expanded)
+  const again = m.type === 'explore' || open ? '' : `<span class="recent-again" data-again="${m.id}"></span>`;
   if (m.type === 'explore') {
     sub = `${m.crew} crew`;
     got = m.zoneName ? `Discovered ${m.zoneName}` : 'Region explored';
@@ -391,18 +429,19 @@ function recentRowHTML(m: CompletedMission, idx: number, rerunnable: boolean): s
     <span class="msym recent-icon">${ICON[m.type]}</span>
     <span class="recent-main"><b>${LABEL[m.type]}</b> <span class="mission-desc">${sub}</span></span>
     <span class="recent-result"><span class="recent-got">${got}</span>${again}</span>
-    <button class="recent-rerun" data-idx="${idx}"${rerunnable ? '' : ' disabled'} title="Run again"><span class="msym">replay</span></button>
+    <button class="recent-rerun${open ? ' open' : ''}" data-mid="${m.id}"${rerunnable ? '' : ' disabled'} title="Run again"><span class="msym">${open ? 'expand_less' : 'replay'}</span></button>
   </div>`;
 }
 
-function crewRowHTML(c: CrewMember, removable = false): string {
+function crewRowHTML(c: CrewMember, removable = false, skillId: SkillId = 'explorer'): string {
   const tail = removable
     ? `<button class="crew-remove" data-crew="${c.id}" title="Remove"><span class="msym">close</span></button>`
     : '';
+  const skill = SKILLS[skillId];
   return `<div class="mcrew-row" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
-    <span class="mcrew-skill" title="Explorer"><span class="msym skill-icon">explore</span><span class="skill-lv"></span><span class="cbar xp"><span class="cbarf xpf"></span></span></span>
+    <span class="mcrew-skill" data-skill="${skillId}" title="${skill.name}"><span class="msym skill-icon">${skill.icon}</span><span class="skill-lv"></span><span class="cbar xp"><span class="cbarf xpf"></span></span></span>
     <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
     ${tail}</div>`;
 }

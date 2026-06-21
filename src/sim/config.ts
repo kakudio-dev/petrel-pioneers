@@ -133,10 +133,11 @@ export const RECENT_MISSIONS = 5; // how many completed missions to keep in the 
 //     awarding its XP somewhere). Each level costs `baseXp` more than the last. ---
 export interface SkillDef {
   name: string;
+  icon: string; // Material Symbol shown on crew rows for this skill
   baseXp: number; // XP to go from level 0→1; level L→L+1 costs baseXp × (L + 1)
 }
 export const SKILLS: Record<SkillId, SkillDef> = {
-  explorer: { name: 'Explorer', baseXp: 100 },
+  explorer: { name: 'Explorer', icon: 'explore', baseXp: 100 },
 };
 // Explorer bonuses applied per level (on top of the level-0 CREW_* values):
 export const CARRY_PER_LEVEL = 1; // +1 hold size per Explorer level

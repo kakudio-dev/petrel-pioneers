@@ -5,6 +5,7 @@ import type {
   CrewMember,
   CrewTask,
   Flows,
+  SkillId,
   StaffStatus,
   Zone,
 } from './types';
@@ -13,6 +14,14 @@ import { gainXp, makeSkills, skillLevel } from './skills';
 import { mulberry32, type Rng } from './rng';
 
 export type MissionType = 'explore' | 'gatherFood' | 'gatherResources';
+
+/** Which skill a mission trains and reads. (All map to Explorer for now; split this
+ *  when a dedicated mining/foraging skill is added.) */
+const MISSION_SKILL: Record<MissionType, SkillId> = {
+  explore: 'explorer',
+  gatherFood: 'explorer',
+  gatherResources: 'explorer',
+};
 
 /** Where a mission is in its lifecycle: traveling out, working the zone, or heading home. */
 export type MissionPhase = 'outbound' | 'gathering' | 'returning';
@@ -202,6 +211,10 @@ export class Colony {
     if (!zone) return 0;
     return type === 'gatherResources' ? zone.resourceAbundance : zone.foodAbundance;
   }
+  /** The skill a mission type trains and reads (drives which level the UI shows). */
+  missionSkill(type: MissionType): SkillId {
+    return MISSION_SKILL[type];
+  }
   /** One-way travel time to a mission's destination. */
   travelTime(type: MissionType, zoneId: number | null): number {
     const distance = type === 'explore' ? C.EXPLORE_DISTANCE : (this.zones.find((z) => z.id === zoneId)?.distance ?? 0);
@@ -323,7 +336,7 @@ export class Colony {
         }
       } else if (m.phase === 'gathering') {
         m.phaseElapsed += dt;
-        for (const c of team) gainXp(c, 'explorer', C.GATHER_XP_PER_SEC * dt);
+        for (const c of team) gainXp(c, MISSION_SKILL[m.type], C.GATHER_XP_PER_SEC * dt);
         const capacity = this.teamCapacity(team);
         const abundance = this.abundanceOf(zone, m.type);
         let gained = Math.min(this.gatherRate(team, abundance) * dt, capacity - m.cargo, abundance);
@@ -346,7 +359,7 @@ export class Colony {
           const amount = Math.round(m.cargo);
           if (m.type === 'gatherFood') this.food = Math.min(this.foodCap, this.food + amount);
           else if (m.type === 'gatherResources') this.iron = Math.min(this.ironCap, this.iron + amount);
-          if (m.type === 'explore') for (const c of team) gainXp(c, 'explorer', C.EXPLORE_XP);
+          if (m.type === 'explore') for (const c of team) gainXp(c, MISSION_SKILL[m.type], C.EXPLORE_XP);
           this.completedMissions.unshift({
             id: m.id,
             type: m.type,

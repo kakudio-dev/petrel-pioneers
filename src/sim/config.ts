@@ -115,14 +115,18 @@ export const CREW_REQ: Record<BuildingType, number> = {
   greenhouse: 3,
 };
 
-// --- Missions (zone-targeted expeditions: pick a team, launch, resolve on finish) ---
-// A gather run can take any number of crew. On completion each crew finds CREW_FIND_RATE
-// of the zone's current abundance; that same total is subtracted from the abundance. For
-// food, each crew can carry at most CREW_CARRY_FOOD home (the rest of the find is lost).
-export const CREW_FIND_RATE = 0.02; // share of current abundance each crew finds per run
-export const CREW_CARRY_FOOD = 2; // max food a single crew can carry back from a run (level 0)
-export const EXPLORE_DURATION = 22; // seconds to discover a new zone
-export const GATHER_DURATION = 26; // seconds for a gather run
+// --- Missions (zone expeditions that play out over time) ---
+// A party travels out (travel time = zone distance), gathers continuously until its hold
+// is full, then travels back and delivers. Gather rate rises with abundance and the
+// party's find skill; what it gathers is removed from the zone's abundance as it goes.
+export const CREW_FIND_RATE = 0.02; // a crew's find "share" (feeds the gather rate), level 0
+export const CREW_CARRY_FOOD = 2; // a crew's hold size — how much cargo it can carry (level 0)
+export const GATHER_RATE_SCALE = 0.1; // cargo/sec = (party find share) × abundance × this
+export const TRAVEL_SECONDS_PER_DISTANCE = 2; // one-way travel seconds per distance unit
+export const EXPLORE_DISTANCE = 5; // how far a scout ranges out (target zone is unknown)
+export const ZONE_DISTANCE_RANGE: [number, number] = [3, 10]; // distance from the hub for new zones
+export const GATHER_XP_PER_SEC = 1; // Explorer XP/sec each crew earns while gathering
+export const EXPLORE_XP = 25; // Explorer XP each crew earns for a completed explore run
 export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log
 
 // --- Skills & leveling (generic — add a skill by extending SkillId + this table, then
@@ -134,12 +138,11 @@ export interface SkillDef {
 export const SKILLS: Record<SkillId, SkillDef> = {
   explorer: { name: 'Explorer', baseXp: 100 },
 };
-export const MISSION_XP = 25; // Explorer XP each crew earns per completed gather/explore run
 // Explorer bonuses applied per level (on top of the level-0 CREW_* values):
-export const CARRY_PER_LEVEL = 1; // +1 max food carried per Explorer level
-export const FIND_PER_LEVEL = 0.01; // +1% find rate per Explorer level
-// Abundance is a 0..MAX_ABUNDANCE score. It only changes on discrete events — never
-// continuously over time.
+export const CARRY_PER_LEVEL = 1; // +1 hold size per Explorer level
+export const FIND_PER_LEVEL = 0.01; // +1% find share per Explorer level
+// Abundance is a 0..MAX_ABUNDANCE score. Seasons change it discretely; an active gather
+// party depletes it continuously while working the zone.
 export const MAX_ABUNDANCE = 100;
 // Food abundance change applied once each time the colony ENTERS a season (index matches
 // SEASONS: Thaw, Highsun, Wane, Dark). Growth ADDS a fraction of the zone's fertility

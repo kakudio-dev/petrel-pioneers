@@ -38,34 +38,26 @@ describe('Colony sim regression suite', () => {
     for (const c of colony.crew) expect(c.health).toBe(C.HEALTH_MAX);
   });
 
-  it('5. gather yields: food has a per-crew carry cap (2), ore does not', () => {
+  it('5. party hold size sums crew holds; travel time scales with distance', () => {
     const colony = new Colony(1);
-    const z = colony.zones[0];
     const three = colony.crew.slice(0, 3).map((c) => c.id);
-    const four = colony.crew.slice(0, 4).map((c) => c.id);
-
-    z.foodAbundance = 150; // find 0.02*150=3 > cap 2 -> capped: 3 crew * 2 = 6
-    expect(colony.missionYield('gatherFood', z.id, three)).toBe(6);
-
-    z.foodAbundance = 50; // find 0.02*50=1 < cap -> 3 crew * 1 = 3
-    expect(colony.missionYield('gatherFood', z.id, three)).toBe(3);
-
-    z.resourceAbundance = 80; // ore uncapped: 4 crew * 0.02*80=1.6 = 6.4 -> 6
-    expect(colony.missionYield('gatherResources', z.id, four)).toBe(6);
+    expect(colony.partyCapacity(three)).toBe(C.CREW_CARRY_FOOD * 3); // 2 * 3
+    expect(colony.travelTime('gatherFood', colony.zones[0].id)).toBe(0); // home, no travel
+    colony.zones[0].distance = 5;
+    expect(colony.travelTime('gatherFood', colony.zones[0].id)).toBe(5 * C.TRAVEL_SECONDS_PER_DISTANCE);
   });
 
-  it('6. season-aware forecast differs from current-abundance yield', () => {
-    const colony = new Colony(5);
-    const z = colony.zones[0];
-    const two = colony.crew.slice(0, 2).map((c) => c.id);
-    colony.elapsed = 50;
-    z.fertility = 0.5;
-    z.foodAbundance = 40;
+  it('6. a gather run fills its hold, returns, and delivers; abundance drops by the cargo', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0]; // home -> no travel
+    z.resourceAbundance = 100;
+    colony.iron = 0;
+    colony.launchMission('gatherResources', z.id, [colony.crew[0].id]); // hold 2
+    for (let i = 0; i < 2000 && colony.activeMissions.length; i++) colony.step(0.1);
 
-    // current abundance 40: 2 crew * 0.02*40=0.8 = 1.6 -> 2
-    expect(colony.missionYield('gatherFood', z.id, two)).toBe(2);
-    // projected into next season's growth (food 40->90): 2 crew * 0.02*90=1.8 = 3.6 -> 4
-    expect(colony.missionForecast('gatherFood', z.id, two)).toBe(4);
+    expect(colony.iron).toBe(2); // a full hold delivered
+    expect(z.resourceAbundance).toBeCloseTo(98, 1); // depleted by the 2 gathered
+    expect(colony.completedMissions[0].amount).toBe(2);
   });
 
   it('7. health drains a full bar per season when starving', () => {
@@ -85,8 +77,11 @@ describe('Colony sim regression suite', () => {
       type: 'gatherResources',
       zoneId: colony.zones[0].id,
       crewIds: [colony.crew[2].id],
-      elapsed: 0,
-      duration: 999,
+      phase: 'returning', // parked away (won't complete) so crew[2] stays on a mission
+      phaseElapsed: 0,
+      travelTime: 0,
+      returnTime: 9999,
+      cargo: 0,
     });
     colony.crew[0].health = 50;
     colony.crew[1].health = 50;
@@ -118,13 +113,13 @@ describe('Colony sim regression suite', () => {
     colony.step(0.1);
     expect(colony.flows.foodConsumption).toBeCloseTo(6 * (2 / 60), 5); // 0.2
 
+    const parked = { phase: 'returning' as const, phaseElapsed: 0, travelTime: 0, returnTime: 9999, cargo: 0 };
     colony.activeMissions.push({
       id: 1,
       type: 'gatherFood',
       zoneId: colony.zones[0].id,
       crewIds: [colony.crew[0].id, colony.crew[1].id, colony.crew[2].id],
-      elapsed: 0,
-      duration: 999,
+      ...parked,
     });
     colony.step(0.1);
     expect(colony.flows.foodConsumption).toBeCloseTo(0.1, 5); // only 3 eat
@@ -135,32 +130,26 @@ describe('Colony sim regression suite', () => {
         type: 'gatherResources',
         zoneId: colony.zones[0].id,
         crewIds: [colony.crew[0].id, colony.crew[1].id, colony.crew[2].id],
-        elapsed: 0,
-        duration: 999,
+        ...parked,
       },
     ];
     colony.step(0.1);
     expect(colony.flows.foodConsumption).toBeCloseTo(0.2, 5); // resource crew still eat
   });
 
-  it('11. gather depletion equals the amount found, applied on resolve', () => {
+  it('11. recall while outbound returns over the distance already traveled', () => {
     const colony = new Colony(1);
     const z = colony.zones[0];
-    z.resourceAbundance = 80;
-    colony.iron = 0;
-    colony.activeMissions.push({
-      id: 2,
-      type: 'gatherResources',
-      zoneId: z.id,
-      crewIds: [colony.crew[0].id, colony.crew[1].id],
-      elapsed: 0,
-      duration: 0.05,
-    });
-    colony.step(0.1);
+    z.distance = 5; // travelTime = 10s
+    colony.launchMission('gatherResources', z.id, [colony.crew[0].id]);
+    const m = colony.activeMissions[0];
+    expect(m.travelTime).toBe(10);
 
-    // 2 crew find 2 * 0.02*80 = 3.2 -> delivered round 3; abundance 80 - 3.2 = 76.8 -> 77
-    expect(colony.iron).toBe(3);
-    expect(z.resourceAbundance).toBe(77);
+    for (let i = 0; i < 30; i++) colony.step(0.1); // 3s out, still traveling
+    expect(m.phase).toBe('outbound');
+    colony.recallMission(m.id);
+    expect(m.phase).toBe('returning');
+    expect(m.returnTime).toBeCloseTo(3, 1); // only the time already spent traveling
   });
 
   it('12. food foragers do not starve — they heal at mission rate mid-famine', () => {
@@ -172,8 +161,11 @@ describe('Colony sim regression suite', () => {
       type: 'gatherFood',
       zoneId: colony.zones[0].id,
       crewIds: [forager.id],
-      elapsed: 0,
-      duration: 999,
+      phase: 'returning', // parked away so it doesn't gather/complete during the test
+      phaseElapsed: 0,
+      travelTime: 0,
+      returnTime: 9999,
+      cargo: 0,
     });
     forager.health = 50;
     stuck.health = 50;
@@ -201,34 +193,44 @@ describe('Colony sim regression suite', () => {
     expect(c.skills.explorer.xp).toBe(50);
   });
 
-  it('14. completing a gather/explore run grants Explorer XP to its crew', () => {
+  it('14. crew train Explorer over time while gathering', () => {
     const colony = new Colony(1);
-    const a = colony.crew[0];
-    const b = colony.crew[1];
-    colony.activeMissions.push({
-      id: 5,
-      type: 'gatherResources',
-      zoneId: colony.zones[0].id,
-      crewIds: [a.id, b.id],
-      elapsed: 0,
-      duration: 0.05,
-    });
-    colony.step(0.1); // resolves
+    const z = colony.zones[0]; // home, no travel
+    z.resourceAbundance = 100; // plenty, so it keeps gathering
+    const c = colony.crew[0];
+    colony.launchMission('gatherResources', z.id, [c.id]);
+    for (let i = 0; i < 5; i++) colony.step(0.1); // tick 1: arrive; ticks 2-5: gather
 
-    expect(a.skills.explorer.xp).toBe(C.MISSION_XP);
-    expect(b.skills.explorer.xp).toBe(C.MISSION_XP);
+    // 4 gathering ticks * GATHER_XP_PER_SEC * 0.1
+    expect(c.skills.explorer.xp).toBeCloseTo(4 * C.GATHER_XP_PER_SEC * 0.1, 5);
   });
 
-  it('15. Explorer levels raise carry cap (+1) and find rate (+1%)', () => {
+  it('15. Explorer levels raise hold size (delivers a bigger full hold)', () => {
     const colony = new Colony(1);
     const z = colony.zones[0];
     const c = colony.crew[0];
-    c.skills.explorer.level = 2; // find 0.02+0.02=0.04, carry cap 2+2=4
+    c.skills.explorer.level = 3; // hold 2 + 3 = 5
+    expect(colony.partyCapacity([c.id])).toBe(5);
 
-    z.foodAbundance = 100; // find 0.04*100=4, cap 4 -> min = 4
-    expect(colony.missionYield('gatherFood', z.id, [c.id])).toBe(4);
+    z.resourceAbundance = 100;
+    colony.iron = 0;
+    colony.launchMission('gatherResources', z.id, [c.id]);
+    for (let i = 0; i < 2000 && colony.activeMissions.length; i++) colony.step(0.1);
+    expect(colony.iron).toBe(5); // a full (bigger) hold
+  });
 
-    z.resourceAbundance = 80; // ore 0.04*80 = 3.2 -> round 3 (no carry cap)
-    expect(colony.missionYield('gatherResources', z.id, [c.id])).toBe(3);
+  it('16. recall while gathering takes a full travel leg home', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0];
+    z.distance = 3; // travelTime 6
+    z.resourceAbundance = 100;
+    colony.launchMission('gatherResources', z.id, [colony.crew[0].id]);
+    for (let i = 0; i < 70; i++) colony.step(0.1); // 6s travel + 1s gather -> gathering
+    const m = colony.activeMissions[0];
+    expect(m.phase).toBe('gathering');
+
+    colony.recallMission(m.id);
+    expect(m.phase).toBe('returning');
+    expect(m.returnTime).toBe(6); // full distance back
   });
 });

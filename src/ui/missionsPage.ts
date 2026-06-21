@@ -1,6 +1,6 @@
 import type { Colony, CompletedMission, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
-import { healthColor } from './format';
+import { healthColor, secs } from './format';
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -49,12 +49,15 @@ export function createMissionsPage(colony: Colony) {
   let activeSig = '';
   let zoneSig = '';
   let recentSig = '';
-  const fills = new Map<number, { fill: HTMLElement; left: HTMLElement; yield: HTMLElement }>();
+  const fills = new Map<number, { fill: HTMLElement; left: HTMLElement; phase: HTMLElement }>();
 
-  function rewardText(type: MissionType, zoneId: number | null, crewIds: number[]): string {
-    if (type === 'explore') return colony.zonesRemaining ? 'Discover a new zone' : 'Region fully explored';
-    if (type === 'gatherFood') return `+${colony.missionForecast('gatherFood', zoneId, crewIds)} food`;
-    return `+${colony.missionForecast('gatherResources', zoneId, crewIds)} ore`;
+  // Pre-launch preview: what the party would bring back and roughly how long a round trip takes.
+  function previewText(type: MissionType, zoneId: number | null, crewIds: number[]): string {
+    if (type === 'explore')
+      return colony.zonesRemaining ? `Discover a new zone · ~${secs(colony.estimateRunSeconds(type, zoneId, crewIds))}` : 'Region fully explored';
+    const unit = type === 'gatherFood' ? 'food' : 'ore';
+    const cap = colony.partyCapacity(crewIds);
+    return `holds ${cap} ${unit} · ~${secs(colony.estimateRunSeconds(type, zoneId, crewIds))} round trip`;
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
@@ -113,11 +116,10 @@ export function createMissionsPage(colony: Colony) {
     const addRow = canAdd
       ? '<button class="crew-add"><span class="msym">person_add</span> Add crew</button>'
       : '';
-    const dur = Math.ceil(colony.missionDuration(type));
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
       <div class="mcrew-list">${rows}${addRow || (rows ? '' : '<div class="empty">No crew available.</div>')}</div>
       <div class="setup-foot">
-        <span class="setup-preview">~${dur}s · Risk Low · ${rewardText(type, zoneId, [...t])}</span>
+        <span class="setup-preview">${previewText(type, zoneId, [...t])}</span>
         <button class="setup-launch">Launch</button>
       </div>
     </div>`;
@@ -247,7 +249,7 @@ export function createMissionsPage(colony: Colony) {
             <div class="amission-head">
               <span class="msym mission-icon">${ICON[m.type]}</span>
               <span class="amission-name"><b>${LABEL[m.type]}</b> <span class="mission-desc">${zone ? zone.name : 'Uncharted region'}</span></span>
-              <span class="m-yield"></span>
+              <span class="m-phase"></span>
               <span class="m-prog"><span class="m-fill"></span></span>
               <span class="m-left"></span>
               <button class="m-recall">Recall</button>
@@ -258,22 +260,32 @@ export function createMissionsPage(colony: Colony) {
           fills.set(m.id, {
             fill: card.querySelector('.m-fill') as HTMLElement,
             left: card.querySelector('.m-left') as HTMLElement,
-            yield: card.querySelector('.m-yield') as HTMLElement,
+            phase: card.querySelector('.m-phase') as HTMLElement,
           });
         }
       }
     }
     for (const m of colony.activeMissions) {
       const r = fills.get(m.id);
-      if (r) {
-        r.fill.style.width = `${Math.min(100, (m.elapsed / m.duration) * 100)}%`;
-        r.left.textContent = `${Math.ceil(m.duration - m.elapsed)}s`;
-        const remaining = m.duration - m.elapsed;
-        if (m.type === 'gatherFood')
-          r.yield.textContent = `+${colony.missionForecast('gatherFood', m.zoneId, m.crewIds, remaining)} food`;
-        else if (m.type === 'gatherResources')
-          r.yield.textContent = `+${colony.missionForecast('gatherResources', m.zoneId, m.crewIds, remaining)} ore`;
+      if (!r) continue;
+      const unit = m.type === 'gatherFood' ? 'food' : 'ore';
+      let progress = 1;
+      let phaseText = '';
+      if (m.phase === 'outbound') {
+        progress = m.travelTime > 0 ? m.phaseElapsed / m.travelTime : 1;
+        phaseText = m.type === 'explore' ? 'Scouting' : 'Traveling out';
+      } else if (m.phase === 'gathering') {
+        const cap = colony.partyCapacity(m.crewIds);
+        progress = cap > 0 ? m.cargo / cap : 1;
+        phaseText = `Gathering · ${Math.floor(m.cargo)}/${cap} ${unit}`;
+      } else {
+        progress = m.returnTime > 0 ? m.phaseElapsed / m.returnTime : 1;
+        phaseText =
+          m.type === 'explore' ? 'Returning' : `Returning · ${Math.round(m.cargo)} ${unit}`;
       }
+      r.fill.style.width = `${Math.min(100, progress * 100)}%`;
+      r.phase.textContent = phaseText;
+      r.left.textContent = `~${secs(colony.missionEta(m))}`;
     }
 
     // zones (re-render on zone or mission-set change; keeps crew availability fresh)
@@ -333,21 +345,20 @@ export function createMissionsPage(colony: Colony) {
     updateRerunForecasts();
   }
 
-  // Live: what each logged gather mission would collect if re-run now (season-aware,
-  // using the crew the re-run would actually take).
+  // Live: the hold size and round-trip time a re-run would have, using the crew it would
+  // actually take (up to the original count, from those free now).
   function updateRerunForecasts() {
     for (const m of colony.completedMissions) {
       if (m.type === 'explore') continue;
       const span = recentList.querySelector(`[data-again="${m.id}"]`);
       if (!span) continue;
-      // the crew a re-run would actually take (up to the original count, from those free now)
       const ids = colony.availableCrew.slice(0, Math.max(1, m.crew)).map((c) => c.id);
       if (ids.length === 0) {
         span.textContent = 'repeat —';
         continue;
       }
       const unit = m.type === 'gatherFood' ? 'food' : 'ore';
-      span.textContent = `repeat +${colony.missionForecast(m.type, m.zoneId, ids)} ${unit}`;
+      span.textContent = `repeat ${colony.partyCapacity(ids)} ${unit} · ~${secs(colony.estimateRunSeconds(m.type, m.zoneId, ids))}`;
     }
   }
 

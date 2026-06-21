@@ -17,6 +17,12 @@ export function netClass(n: number): string {
   return 'zero';
 }
 
+/** Compact duration, e.g. "12s" or "1m 5s". */
+export function secs(n: number): string {
+  const s = Math.max(0, Math.ceil(n));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
 /** Health-bar colour by level: healthy green → warning amber → critical red. */
 export function healthColor(hp: number): string {
   if (hp < 25) return '#ff6b6b';

@@ -14,14 +14,23 @@ import { mulberry32, type Rng } from './rng';
 
 export type MissionType = 'explore' | 'gatherFood' | 'gatherResources';
 
-/** A running expedition: a fixed team of crew sent to a zone (explore has none). */
+/** Where a mission is in its lifecycle: traveling out, working the zone, or heading home. */
+export type MissionPhase = 'outbound' | 'gathering' | 'returning';
+
+/** A running expedition. A party travels out (travelTime), gathers until its hold is full,
+ *  then travels back (returnTime) and delivers its cargo. Explore skips gathering — it
+ *  discovers a zone on arrival and turns straight around. */
 export interface Mission {
   id: number;
   type: MissionType;
   zoneId: number | null;
   crewIds: number[];
-  elapsed: number;
-  duration: number;
+  phase: MissionPhase;
+  phaseElapsed: number; // seconds spent in the current phase
+  travelTime: number; // one-way travel time (cached at launch)
+  returnTime: number; // duration of the return leg (full travelTime, or less if recalled outbound)
+  cargo: number; // units gathered so far
+  discovered?: string; // explore: the zone name discovered on arrival
 }
 
 /** A finished expedition, kept for the recent-missions log (and for re-running). */
@@ -165,14 +174,11 @@ export class Colony {
   get zonesRemaining(): boolean {
     return this.discoveredCount < C.ZONE_NAMES.length;
   }
-  missionDuration(type: MissionType): number {
-    return type === 'explore' ? C.EXPLORE_DURATION : C.GATHER_DURATION;
-  }
-  /** A crew member's share of abundance found per run — base rate plus Explorer bonus. */
+  /** A crew member's find "share" — base rate plus Explorer bonus (feeds the gather rate). */
   private findRate(c: CrewMember): number {
     return C.CREW_FIND_RATE + skillLevel(c, 'explorer') * C.FIND_PER_LEVEL;
   }
-  /** A crew member's max food carried home per run — base cap plus Explorer bonus. */
+  /** A crew member's hold size — base capacity plus Explorer bonus. */
   private carryCap(c: CrewMember): number {
     return C.CREW_CARRY_FOOD + skillLevel(c, 'explorer') * C.CARRY_PER_LEVEL;
   }
@@ -181,74 +187,94 @@ export class Colony {
       .map((id) => this.crew.find((c) => c.id === id))
       .filter((c): c is CrewMember => c !== undefined);
   }
-  /** Total abundance a team finds (and depletes) at a given abundance — summed per crew. */
-  private totalFound(team: CrewMember[], abundance: number): number {
-    let sum = 0;
-    for (const c of team) sum += this.findRate(c) * abundance;
-    return sum;
+  private teamCapacity(team: CrewMember[]): number {
+    let cap = 0;
+    for (const c of team) cap += this.carryCap(c);
+    return cap;
   }
-  /** Food a team carries home from a given food abundance — each crew capped at its carry. */
-  private foodDelivered(team: CrewMember[], foodAbundance: number): number {
-    let sum = 0;
-    for (const c of team) sum += Math.min(this.findRate(c) * foodAbundance, this.carryCap(c));
-    return sum;
+  /** Cargo/sec a team pulls in at a given abundance: party find-share × abundance × scale. */
+  private gatherRate(team: CrewMember[], abundance: number): number {
+    let share = 0;
+    for (const c of team) share += this.findRate(c);
+    return share * abundance * C.GATHER_RATE_SCALE;
   }
-  /** Resources actually carried home by a gather run, from the zone's CURRENT abundance —
-   *  used when the run resolves. Food is capped per crew; ore has no cap. */
-  missionYield(type: MissionType, zoneId: number | null, crewIds: number[]): number {
-    const zone = this.zones.find((z) => z.id === zoneId);
-    const team = this.crewByIds(crewIds);
-    if (!zone || type === 'explore' || team.length === 0) return 0;
-    if (type === 'gatherFood') return Math.round(this.foodDelivered(team, zone.foodAbundance));
-    return Math.round(this.totalFound(team, zone.resourceAbundance));
+  private abundanceOf(zone: Zone | undefined, type: MissionType): number {
+    if (!zone) return 0;
+    return type === 'gatherResources' ? zone.resourceAbundance : zone.foodAbundance;
   }
-  /** Forecast of a run's yield. Unlike missionYield this projects food abundance forward
-   *  to when the run RETURNS — applying any season change(s) it will cross — so the
-   *  predicted food matches what actually comes back. `lookahead` is the time until return
-   *  (full duration for a pre-launch preview; remaining time for an in-flight mission).
-   *  Ore ignores seasons. */
-  missionForecast(
-    type: MissionType,
-    zoneId: number | null,
-    crewIds: number[],
-    lookahead = C.GATHER_DURATION,
-  ): number {
-    const zone = this.zones.find((z) => z.id === zoneId);
-    const team = this.crewByIds(crewIds);
-    if (!zone || type === 'explore' || team.length === 0) return 0;
-    if (type === 'gatherFood')
-      return Math.round(this.foodDelivered(team, this.projectedFoodAbundance(zone, lookahead)));
-    return Math.round(this.totalFound(team, zone.resourceAbundance));
+  /** One-way travel time to a mission's destination. */
+  travelTime(type: MissionType, zoneId: number | null): number {
+    const distance = type === 'explore' ? C.EXPLORE_DISTANCE : (this.zones.find((z) => z.id === zoneId)?.distance ?? 0);
+    return distance * C.TRAVEL_SECONDS_PER_DISTANCE;
   }
-  /** A zone's food abundance projected `lookahead` seconds ahead, applying each season
-   *  change crossed in that window. */
-  private projectedFoodAbundance(zone: Zone, lookahead: number): number {
-    const fromSeason = Math.floor(this.elapsed / C.SEASON_LENGTH);
-    const toSeason = Math.floor((this.elapsed + lookahead) / C.SEASON_LENGTH);
-    let food = zone.foodAbundance;
-    const fertScore = zone.fertility * C.MAX_ABUNDANCE;
-    for (let s = fromSeason + 1; s <= toSeason; s++) {
-      const idx = s % C.SEASONS.length;
-      food = Math.round((food + C.SEASON_FOOD_GROWTH[idx] * fertScore) * (1 - C.SEASON_FOOD_DECAY[idx]));
+  /** Hold size of the team that would crew a mission (sum of per-crew capacity). */
+  partyCapacity(crewIds: number[]): number {
+    return this.teamCapacity(this.crewByIds(crewIds));
+  }
+  /** Estimated seconds to fill a hold from `fromCargo` at `abundance` — a forward sim that
+   *  accounts for the zone depleting as it's worked (ignores future season shifts). */
+  private gatherSeconds(team: CrewMember[], abundance: number, fromCargo: number, capacity: number): number {
+    let cargo = fromCargo;
+    let ab = abundance;
+    let t = 0;
+    const dt = 0.5;
+    while (cargo < capacity - 1e-6 && ab > 1e-6 && t < 600) {
+      let g = this.gatherRate(team, ab) * dt;
+      g = Math.min(g, capacity - cargo, ab);
+      cargo += g;
+      ab -= g;
+      t += dt;
     }
-    return food;
+    return t;
   }
+  /** Estimated seconds for a full round trip if launched now (preview). */
+  estimateRunSeconds(type: MissionType, zoneId: number | null, crewIds: number[]): number {
+    const travel = this.travelTime(type, zoneId);
+    if (type === 'explore') return travel * 2;
+    const team = this.crewByIds(crewIds);
+    const ab = this.abundanceOf(this.zones.find((z) => z.id === zoneId), type);
+    return travel + this.gatherSeconds(team, ab, 0, this.teamCapacity(team)) + travel;
+  }
+  /** Estimated seconds until an active mission's hold is full (0 once it's returning). */
+  missionTimeToFull(m: Mission): number {
+    if (m.type === 'explore' || m.phase === 'returning') return 0;
+    const team = this.crewByIds(m.crewIds);
+    const ab = this.abundanceOf(this.zones.find((z) => z.id === m.zoneId), m.type);
+    const travelLeft = m.phase === 'outbound' ? Math.max(0, m.travelTime - m.phaseElapsed) : 0;
+    return travelLeft + this.gatherSeconds(team, ab, m.cargo, this.teamCapacity(team));
+  }
+  /** Estimated seconds until an active mission is back home and delivered. */
+  missionEta(m: Mission): number {
+    if (m.phase === 'returning') return Math.max(0, m.returnTime - m.phaseElapsed);
+    return this.missionTimeToFull(m) + m.travelTime;
+  }
+
   /** Launch a mission with a fixed team (crew ids) targeting an optional zone. */
   launchMission(type: MissionType, zoneId: number | null, crewIds: number[]): boolean {
     if (crewIds.length === 0) return false;
+    const travelTime = this.travelTime(type, zoneId);
     this.activeMissions.push({
       id: genId(),
       type,
       zoneId,
       crewIds: [...crewIds],
-      elapsed: 0,
-      duration: this.missionDuration(type),
+      phase: 'outbound',
+      phaseElapsed: 0,
+      travelTime,
+      returnTime: travelTime,
+      cargo: 0,
     });
     return true;
   }
-  /** Recall an active mission early — its crew return, no reward. */
+  /** Recall an active mission — it heads home now, carrying whatever it has gathered. The
+   *  return takes a full travel leg if it had reached the zone, or only the time already
+   *  spent traveling if it was still outbound. */
   recallMission(id: number): void {
-    this.activeMissions = this.activeMissions.filter((m) => m.id !== id);
+    const m = this.activeMissions.find((x) => x.id === id);
+    if (!m || m.phase === 'returning') return;
+    m.returnTime = m.phase === 'outbound' ? m.phaseElapsed : m.travelTime;
+    m.phase = 'returning';
+    m.phaseElapsed = 0;
   }
 
   private discoverZone(): string | undefined {
@@ -273,44 +299,65 @@ export class Colony {
     }
   }
 
+  /** Advance every active mission through its phases: travel out → gather until full →
+   *  travel home → deliver. Gathering depletes the zone as cargo accumulates and trains
+   *  the party's Explorer skill over time. */
   private processMissions(dt: number): void {
     const done: number[] = [];
     for (const m of this.activeMissions) {
-      m.elapsed += dt;
-      if (m.elapsed >= m.duration) {
-        const zone = this.zones.find((z) => z.id === m.zoneId);
-        const team = this.crewByIds(m.crewIds);
-        let amount = 0;
-        let zoneName = zone?.name ?? '';
-        if (m.type === 'explore') {
-          zoneName = this.discoverZone() ?? '';
-        } else if (m.type === 'gatherFood') {
-          amount = this.missionYield('gatherFood', m.zoneId, m.crewIds);
-          this.food = Math.min(this.foodCap, this.food + amount);
-          if (zone) {
-            const found = this.totalFound(team, zone.foodAbundance);
-            zone.foodAbundance = Math.max(0, Math.round(zone.foodAbundance - found));
-          }
-        } else {
-          amount = this.missionYield('gatherResources', m.zoneId, m.crewIds);
-          this.iron = Math.min(this.ironCap, this.iron + amount);
-          if (zone) {
-            const found = this.totalFound(team, zone.resourceAbundance);
-            zone.resourceAbundance = Math.max(0, Math.round(zone.resourceAbundance - found));
+      const team = this.crewByIds(m.crewIds);
+      const zone = this.zones.find((z) => z.id === m.zoneId);
+
+      if (m.phase === 'outbound') {
+        m.phaseElapsed += dt;
+        if (m.phaseElapsed >= m.travelTime) {
+          if (m.type === 'explore') {
+            m.discovered = this.discoverZone() ?? '';
+            m.phase = 'returning';
+            m.phaseElapsed = 0;
+            m.returnTime = m.travelTime;
+          } else {
+            m.phase = 'gathering';
+            m.phaseElapsed = 0;
           }
         }
-        // Every crew on a completed gather/explore run trains their Explorer skill.
-        for (const c of team) gainXp(c, 'explorer', C.MISSION_XP);
-        this.completedMissions.unshift({
-          id: m.id,
-          type: m.type,
-          zoneId: m.zoneId,
-          zoneName,
-          crew: m.crewIds.length,
-          amount,
-        });
-        if (this.completedMissions.length > C.RECENT_MISSIONS) this.completedMissions.pop();
-        done.push(m.id);
+      } else if (m.phase === 'gathering') {
+        m.phaseElapsed += dt;
+        for (const c of team) gainXp(c, 'explorer', C.GATHER_XP_PER_SEC * dt);
+        const capacity = this.teamCapacity(team);
+        const abundance = this.abundanceOf(zone, m.type);
+        let gained = Math.min(this.gatherRate(team, abundance) * dt, capacity - m.cargo, abundance);
+        if (gained < 0) gained = 0;
+        m.cargo += gained;
+        if (zone) {
+          if (m.type === 'gatherFood') zone.foodAbundance = Math.max(0, zone.foodAbundance - gained);
+          else zone.resourceAbundance = Math.max(0, zone.resourceAbundance - gained);
+        }
+        // hold full, or the zone is tapped out — head home
+        if (m.cargo >= capacity - 1e-6 || abundance - gained <= 1e-6) {
+          m.phase = 'returning';
+          m.phaseElapsed = 0;
+          m.returnTime = m.travelTime;
+        }
+      } else {
+        // returning
+        m.phaseElapsed += dt;
+        if (m.phaseElapsed >= m.returnTime) {
+          const amount = Math.round(m.cargo);
+          if (m.type === 'gatherFood') this.food = Math.min(this.foodCap, this.food + amount);
+          else if (m.type === 'gatherResources') this.iron = Math.min(this.ironCap, this.iron + amount);
+          if (m.type === 'explore') for (const c of team) gainXp(c, 'explorer', C.EXPLORE_XP);
+          this.completedMissions.unshift({
+            id: m.id,
+            type: m.type,
+            zoneId: m.zoneId,
+            zoneName: m.type === 'explore' ? (m.discovered ?? '') : (zone?.name ?? ''),
+            crew: m.crewIds.length,
+            amount,
+          });
+          if (this.completedMissions.length > C.RECENT_MISSIONS) this.completedMissions.pop();
+          done.push(m.id);
+        }
       }
     }
     if (done.length) this.activeMissions = this.activeMissions.filter((m) => !done.includes(m.id));
@@ -714,6 +761,7 @@ function makeZone(name: string, kind: string, home: boolean, rng: Rng): Zone {
     name,
     kind,
     home,
+    distance: home ? 0 : rollRange(C.ZONE_DISTANCE_RANGE, rng),
     fertility,
     oreRichness,
     // abundance is a score starting at the zone's geological ceiling, then depletes as it's worked

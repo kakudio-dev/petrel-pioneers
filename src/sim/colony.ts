@@ -39,6 +39,7 @@ export interface Mission {
   travelTime: number; // one-way travel time (cached at launch)
   returnTime: number; // duration of the return leg (full travelTime, or less if recalled outbound)
   cargo: number; // units gathered so far
+  startedAt: number; // colony elapsed time at launch (for total duration)
   discovered?: string; // explore: the zone name discovered on arrival
 }
 
@@ -50,6 +51,7 @@ export interface CompletedMission {
   zoneName: string; // target zone, or the newly discovered zone for explore
   crew: number;
   amount: number; // food/ore delivered (0 for explore)
+  duration: number; // seconds the run actually took, launch to delivery
 }
 
 let nextId = 1;
@@ -276,6 +278,7 @@ export class Colony {
       travelTime,
       returnTime: travelTime,
       cargo: 0,
+      startedAt: this.elapsed,
     });
     return true;
   }
@@ -367,6 +370,7 @@ export class Colony {
             zoneName: m.type === 'explore' ? (m.discovered ?? '') : (zone?.name ?? ''),
             crew: m.crewIds.length,
             amount,
+            duration: this.elapsed - m.startedAt,
           });
           if (this.completedMissions.length > C.RECENT_MISSIONS) this.completedMissions.pop();
           done.push(m.id);

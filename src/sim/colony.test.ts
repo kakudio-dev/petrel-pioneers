@@ -58,6 +58,7 @@ describe('Colony sim regression suite', () => {
     expect(colony.iron).toBe(2); // a full hold delivered
     expect(z.resourceAbundance).toBeCloseTo(98, 1); // depleted by the 2 gathered
     expect(colony.completedMissions[0].amount).toBe(2);
+    expect(colony.completedMissions[0].duration).toBeGreaterThan(0); // records how long it took
   });
 
   it('7. health drains a full bar per season when starving', () => {
@@ -82,6 +83,7 @@ describe('Colony sim regression suite', () => {
       travelTime: 0,
       returnTime: 9999,
       cargo: 0,
+      startedAt: 0,
     });
     colony.crew[0].health = 50;
     colony.crew[1].health = 50;
@@ -113,7 +115,7 @@ describe('Colony sim regression suite', () => {
     colony.step(0.1);
     expect(colony.flows.foodConsumption).toBeCloseTo(6 * (10 / 60), 5); // all 6 eat
 
-    const parked = { phase: 'returning' as const, phaseElapsed: 0, travelTime: 0, returnTime: 9999, cargo: 0 };
+    const parked = { phase: 'returning' as const, phaseElapsed: 0, travelTime: 0, returnTime: 9999, cargo: 0, startedAt: 0 };
     colony.activeMissions.push({
       id: 1,
       type: 'gatherFood',
@@ -166,6 +168,7 @@ describe('Colony sim regression suite', () => {
       travelTime: 0,
       returnTime: 9999,
       cargo: 0,
+      startedAt: 0,
     });
     forager.health = 50;
     stuck.health = 50;

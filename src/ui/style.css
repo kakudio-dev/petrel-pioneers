@@ -164,9 +164,10 @@ body {
 .amission .m-left { font-size: 12px; color: var(--ink-dim); white-space: nowrap; min-width: 28px; }
 .amission-head.clickable { cursor: pointer; }
 .amission .m-chev { color: var(--ink-dim); font-size: 20px; }
-/* active missions are minimized by default — crew show only when expanded */
-.amission .mcrew-list { display: none; }
-.amission.open .mcrew-list { display: flex; }
+/* active missions are minimized by default — crew + recall show only when expanded */
+.amission .amission-body { display: none; }
+.amission.open .amission-body { display: block; }
+.amission-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
 
 /* crew rows (missions setup + active) */
 .mcrew-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
@@ -204,7 +205,7 @@ body {
 .recent-main { flex: 1; min-width: 0; font-size: 13px; }
 .recent-result { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; white-space: nowrap; }
 .recent-got { font-size: 12px; color: var(--ink); }
-.recent-again { font-size: 11px; color: var(--ink-dim); }
+.recent-took { font-size: 11px; color: var(--ink-dim); }
 .recent-rerun {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; border-radius: 6px;

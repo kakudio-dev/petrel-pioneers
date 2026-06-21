@@ -266,15 +266,14 @@ export function createMissionsPage(colony: Colony) {
               <span class="m-phase"></span>
               <span class="m-prog"><span class="m-fill"></span></span>
               <span class="m-left"></span>
-              <button class="m-recall">Recall</button>
               <span class="msym m-chev">${open ? 'expand_less' : 'expand_more'}</span>
             </div>
-            <div class="mcrew-list">${team}</div>`;
+            <div class="amission-body">
+              <div class="mcrew-list">${team}</div>
+              <div class="amission-foot"><button class="m-recall">Recall</button></div>
+            </div>`;
           const recall = card.querySelector('.m-recall') as HTMLElement;
-          recall.addEventListener('click', (e) => {
-            e.stopPropagation();
-            colony.recallMission(m.id);
-          });
+          recall.addEventListener('click', () => colony.recallMission(m.id));
           const chev = card.querySelector('.m-chev') as HTMLElement;
           card.querySelector('.amission-head')!.addEventListener('click', () => {
             const nowOpen = !openMissions.has(m.id);
@@ -338,7 +337,6 @@ export function createMissionsPage(colony: Colony) {
       recentSig = rsig;
       renderRecent();
     }
-    updateRerunForecasts(); // keep re-run forecasts fresh as seasons/abundance drift
     updateCrewStats(); // keep HP + Explorer level/XP on setup/active crew rows live
   }
 
@@ -389,25 +387,7 @@ export function createMissionsPage(colony: Colony) {
       }),
     );
     wireSetups(recentList, renderRecent);
-    updateRerunForecasts();
     updateCrewStats();
-  }
-
-  // Live: the hold size and round-trip time a re-run would have, using the crew it would
-  // actually take (up to the original count, from those free now).
-  function updateRerunForecasts() {
-    for (const m of colony.completedMissions) {
-      if (m.type === 'explore') continue;
-      const span = recentList.querySelector(`[data-again="${m.id}"]`);
-      if (!span) continue;
-      const ids = colony.availableCrew.slice(0, Math.max(1, m.crew)).map((c) => c.id);
-      if (ids.length === 0) {
-        span.textContent = 'repeat —';
-        continue;
-      }
-      const unit = m.type === 'gatherFood' ? 'food' : 'ore';
-      span.textContent = `repeat ${colony.partyCapacity(ids)} ${unit} · ~${secs(colony.estimateRunSeconds(m.type, m.zoneId, ids))}`;
-    }
   }
 
   return { el, update };
@@ -416,8 +396,6 @@ export function createMissionsPage(colony: Colony) {
 function recentRowHTML(m: CompletedMission, rerunnable: boolean, open: boolean): string {
   let sub: string;
   let got: string;
-  // collapsed-only: `recent-again` shows the live re-run forecast (hidden while expanded)
-  const again = m.type === 'explore' || open ? '' : `<span class="recent-again" data-again="${m.id}"></span>`;
   if (m.type === 'explore') {
     sub = `${m.crew} crew`;
     got = m.zoneName ? `Discovered ${m.zoneName}` : 'Region explored';
@@ -425,11 +403,12 @@ function recentRowHTML(m: CompletedMission, rerunnable: boolean, open: boolean):
     sub = `${m.zoneName} · ${m.crew} crew`;
     got = m.type === 'gatherFood' ? `+${m.amount} food` : `+${m.amount} ore`;
   }
+  // collapsed row reports what actually happened; the expanded setup shows the prediction
   return `<div class="recent-row">
     <span class="msym recent-icon">${ICON[m.type]}</span>
     <span class="recent-main"><b>${LABEL[m.type]}</b> <span class="mission-desc">${sub}</span></span>
-    <span class="recent-result"><span class="recent-got">${got}</span>${again}</span>
-    <button class="recent-rerun${open ? ' open' : ''}" data-mid="${m.id}"${rerunnable ? '' : ' disabled'} title="Run again"><span class="msym">${open ? 'expand_less' : 'replay'}</span></button>
+    <span class="recent-result"><span class="recent-got">${got}</span><span class="recent-took">took ${secs(m.duration)}</span></span>
+    <button class="recent-rerun${open ? ' open' : ''}" data-mid="${m.id}"${rerunnable ? '' : ' disabled'} title="${open ? 'Hide' : 'Plan a repeat'}"><span class="msym">${open ? 'expand_less' : 'replay'}</span></button>
   </div>`;
 }
 

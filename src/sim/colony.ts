@@ -297,6 +297,15 @@ export class Colony {
     }
     return cons * (2 * travel + gatherTime); // gatherResources: rations for the whole trip
   }
+  /** Rations a mission actually takes: what it needs to reach its goal, but never more than
+   *  the length's share of the hold (goalFraction × capacity). So a short run carries at most
+   *  half a hold of food and backfills the rest with cargo; it only takes less if that's all
+   *  it needs. (Explore isn't hold-bound — it just provisions the round trip.) */
+  missionRations(type: MissionType, zoneId: number | null, crewIds: number[], goalFraction: number): number {
+    const needed = this.provisionsNeeded(type, zoneId, crewIds, goalFraction);
+    if (type === 'explore') return needed;
+    return Math.min(needed, this.teamCapacity(this.crewByIds(crewIds)) * goalFraction);
+  }
 
   /** Launch a mission with a fixed team (crew ids) targeting an optional zone. The goal is a
    *  fraction of the hold; rations are drawn from the larder (capped at what's available). */
@@ -308,7 +317,7 @@ export class Colony {
   ): boolean {
     if (crewIds.length === 0) return false;
     const travelTime = this.travelTime(type, zoneId);
-    const provisions = Math.min(this.provisionsNeeded(type, zoneId, crewIds, goalFraction), this.food);
+    const provisions = Math.min(this.missionRations(type, zoneId, crewIds, goalFraction), this.food);
     this.food -= provisions;
     this.activeMissions.push({
       id: genId(),

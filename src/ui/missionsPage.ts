@@ -62,7 +62,7 @@ export function createMissionsPage(colony: Colony) {
   // Pre-launch preview: the goal, the food it costs, and an approximate round-trip time.
   function previewHTML(type: MissionType, zoneId: number | null, crewIds: number[], goal: MissionGoal): string {
     const fraction = MISSION_GOALS[goal];
-    const cost = Math.round(colony.provisionsNeeded(type, zoneId, crewIds, fraction));
+    const cost = Math.round(colony.missionRations(type, zoneId, crewIds, fraction));
     const eta = secs(colony.estimateRunSeconds(type, zoneId, crewIds, fraction));
     const headline =
       type === 'explore'

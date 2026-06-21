@@ -282,4 +282,23 @@ describe('Colony sim regression suite', () => {
     for (let i = 0; i < 10 && colony.activeMissions.length; i++) colony.step(0.1);
     expect(colony.food).toBeGreaterThan(before - taken); // most rations returned to the larder
   });
+
+  it('19. rations are capped at the length share of the hold, but only what is needed', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0];
+    const cap = colony.partyCapacity([colony.crew[0].id]); // hold size
+    colony.food = 1000; // larder isn't the limiter
+
+    // slow ore gather would "need" far more food than the cap -> capped at 50% of the hold
+    z.resourceAbundance = 50;
+    const shortOre = colony.missionRations('gatherResources', z.id, [colony.crew[0].id], C.MISSION_GOALS.short);
+    expect(shortOre).toBeCloseTo(cap * 0.5, 5);
+
+    // a net-positive food run needs little -> takes less than the cap
+    z.distance = 5;
+    z.foodAbundance = 300;
+    const food = colony.missionRations('gatherFood', z.id, [colony.crew[0].id], C.MISSION_GOALS.long);
+    expect(food).toBeLessThan(cap * 1); // well under the 100% cap
+    expect(food).toBeGreaterThan(0);
+  });
 });

@@ -15,13 +15,16 @@ import { mulberry32, type Rng } from './rng';
 
 export type MissionType = 'explore' | 'gatherFood' | 'gatherResources';
 
-/** Which skill a mission trains and reads. (All map to Explorer for now; split this
- *  when a dedicated mining/foraging skill is added.) */
+/** The work phase of each mission trains this skill. (All map to Explorer for now; split
+ *  this when a dedicated mining/combat/etc. skill is added.) */
 const MISSION_SKILL: Record<MissionType, SkillId> = {
   explore: 'explorer',
   gatherFood: 'explorer',
   gatherResources: 'explorer',
 };
+
+/** Traveling to and from a mission always trains Explorer, regardless of mission type. */
+const TRAVEL_SKILL: SkillId = 'explorer';
 
 /** Where a mission is in its lifecycle: traveling out, working the zone, or heading home. */
 export type MissionPhase = 'outbound' | 'gathering' | 'returning';
@@ -382,12 +385,11 @@ export class Colony {
       const cons = this.missionConsumption(team);
       const need = cons * dt; // food the crew must eat this tick
       m.starving = false;
-
-      // crew train their mission's skill the whole time they're away — travel, gather, return
-      for (const c of team) gainXp(c, MISSION_SKILL[m.type], C.MISSION_XP_PER_SEC * dt);
+      const xp = C.MISSION_XP_PER_SEC * dt;
 
       if (m.phase === 'outbound') {
         m.phaseElapsed += dt;
+        for (const c of team) gainXp(c, TRAVEL_SKILL, xp); // traveling trains Explorer
         this.feed(m, need); // eating while traveling out
         if (m.phaseElapsed >= m.travelTime) {
           if (m.type === 'explore') {
@@ -402,6 +404,7 @@ export class Colony {
         }
       } else if (m.phase === 'gathering') {
         m.phaseElapsed += dt;
+        for (const c of team) gainXp(c, MISSION_SKILL[m.type], xp); // working trains the mission skill
         const capacity = this.teamCapacity(team);
         const free = Math.max(0, capacity - m.provisions - m.cargo); // room left in the hold
         const abundance = this.abundanceOf(zone, m.type);
@@ -431,8 +434,9 @@ export class Colony {
           m.returnTime = m.travelTime;
         }
       } else {
-        // returning — still eating
+        // returning — still eating, and traveling trains Explorer
         m.phaseElapsed += dt;
+        for (const c of team) gainXp(c, TRAVEL_SKILL, xp);
         this.feed(m, need);
         if (m.phaseElapsed >= m.returnTime) {
           const amount = Math.round(m.cargo);

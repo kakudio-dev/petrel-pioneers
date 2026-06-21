@@ -11,7 +11,7 @@ export function fmt(n: number, digits = 0): string {
 export function rate(n: number): string {
   const perSeason = n * SEASON_LENGTH;
   const sign = perSeason > 0.5 ? '+' : perSeason < -0.5 ? '' : '±';
-  return `${sign}${perSeason.toFixed(1)}/season`;
+  return `${sign}${perSeason.toFixed(0)}/season`;
 }
 
 export function netClass(n: number): string {

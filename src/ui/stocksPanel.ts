@@ -46,8 +46,8 @@ export function createStocksPanel() {
     refs.iVal.textContent = `${fmt(colony.iron)} / ${fmt(colony.ironCap)}`;
     setNet(refs.iNet, f.ironNet);
     refs.iSub.textContent = f.ironWasted
-      ? `stockpile full · extracting ${perSeason(f.ironProduced).toFixed(1)}/season wasted`
-      : `extracting ${perSeason(f.ironProduced).toFixed(1)}/season`;
+      ? `stockpile full · extracting ${perSeason(f.ironProduced).toFixed(0)}/season wasted`
+      : `extracting ${perSeason(f.ironProduced).toFixed(0)}/season`;
 
     // Famine = the larder is empty AND crew is actively declining. At the exact
     // food-supportable equilibrium the larder sits empty but isn't a crisis.

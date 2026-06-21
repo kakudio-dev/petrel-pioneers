@@ -28,6 +28,8 @@ export interface CrewMember {
   task: CrewTask;
   /** Trained skills, keyed by SkillId (every crew has an entry per known skill). */
   skills: Record<SkillId, Skill>;
+  /** Hidden, randomized learning aptitude per skill (a multiplier on XP gained). Not shown. */
+  aptitude: Record<SkillId, number>;
 }
 
 /** A region discovered by Explore missions. Later, other missions run in zones.

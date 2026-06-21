@@ -194,6 +194,7 @@ describe('Colony sim regression suite', () => {
 
   it('13. skills level up, each level costing more XP', () => {
     const c = new Colony(1).crew[0];
+    c.aptitude.explorer = 1; // isolate the leveling curve from the hidden aptitude multiplier
     expect(skillLevel(c, 'explorer')).toBe(0);
     expect(xpToNext('explorer', 0)).toBe(C.SKILLS.explorer.baseXp);
     expect(xpToNext('explorer', 1)).toBe(C.SKILLS.explorer.baseXp * 2);
@@ -207,16 +208,30 @@ describe('Colony sim regression suite', () => {
     expect(c.skills.explorer.xp).toBe(50);
   });
 
-  it('14. crew train Explorer over time while gathering', () => {
+  it('14. crew train their skill the whole mission — including travel legs', () => {
     const colony = new Colony(1);
-    const z = colony.zones[0]; // home, no travel
-    z.resourceAbundance = 100; // plenty, so it keeps gathering
+    const z = colony.zones[0];
+    z.distance = 5; // travelTime 10s -> the first 10s are pure travel, no gathering
     const c = colony.crew[0];
+    c.aptitude.explorer = 1; // clean rate
     colony.launchMission('gatherResources', z.id, [c.id]);
-    for (let i = 0; i < 5; i++) colony.step(0.1); // tick 1: arrive; ticks 2-5: gather
+    for (let i = 0; i < 50; i++) colony.step(0.1); // 5s, still traveling out
 
-    // 4 gathering ticks * GATHER_XP_PER_SEC * 0.1
-    expect(c.skills.explorer.xp).toBeCloseTo(4 * C.GATHER_XP_PER_SEC * 0.1, 5);
+    expect(colony.activeMissions[0].phase).toBe('outbound'); // hasn't reached the zone yet
+    expect(c.skills.explorer.xp).toBeCloseTo(50 * C.MISSION_XP_PER_SEC * 0.1, 5); // XP earned while traveling
+  });
+
+  it('14b. hidden aptitude scales XP gain (2x learns twice as fast as 1x)', () => {
+    const fast = new Colony(1).crew[0];
+    const slow = new Colony(1).crew[0];
+    fast.aptitude.explorer = 2;
+    slow.aptitude.explorer = 1;
+    gainXp(fast, 'explorer', 50);
+    gainXp(slow, 'explorer', 50);
+    // fast banked 100 -> level 1; slow banked 50 -> still level 0 with 50 xp
+    expect(fast.skills.explorer.level).toBe(1);
+    expect(slow.skills.explorer.level).toBe(0);
+    expect(slow.skills.explorer.xp).toBe(50);
   });
 
   it('15. Explorer levels raise hold size (+1 per level)', () => {

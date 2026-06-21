@@ -125,8 +125,7 @@ export const GATHER_RATE_SCALE = 0.1; // cargo/sec = (party find share) × abund
 export const TRAVEL_SECONDS_PER_DISTANCE = 2; // one-way travel seconds per distance unit
 export const EXPLORE_DISTANCE = 5; // how far a scout ranges out (target zone is unknown)
 export const ZONE_DISTANCE_RANGE: [number, number] = [3, 10]; // distance from the hub for new zones
-export const GATHER_XP_PER_SEC = 1; // Explorer XP/sec each crew earns while gathering
-export const EXPLORE_XP = 25; // Explorer XP each crew earns for a completed explore run
+export const MISSION_XP_PER_SEC = 1; // skill XP/sec each crew earns the whole time it's on a mission
 export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log
 // Mission length presets — how many seasons of rations the party provisions for.
 export const MISSION_LENGTHS = { short: 0.25, regular: 0.5, long: 1 } as const;
@@ -142,6 +141,10 @@ export interface SkillDef {
 export const SKILLS: Record<SkillId, SkillDef> = {
   explorer: { name: 'Explorer', icon: 'explore', baseXp: 100 },
 };
+// Each crew has a hidden, randomized aptitude per skill that scales how fast they earn its
+// XP — rolled once at creation in [APTITUDE_MIN, APTITUDE_MAX] (0.5× to 2× learning speed).
+export const APTITUDE_MIN = 0.5;
+export const APTITUDE_MAX = 2;
 // Explorer bonuses applied per level (on top of the level-0 CREW_* values):
 export const CARRY_PER_LEVEL = 10; // +10 hold size per Explorer level
 export const FIND_PER_LEVEL = 0.01; // +1% find share per Explorer level

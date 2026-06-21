@@ -10,7 +10,7 @@ import type {
   Zone,
 } from './types';
 import * as C from './config';
-import { gainXp, makeSkills, skillLevel } from './skills';
+import { gainXp, makeAptitudes, makeSkills, skillLevel } from './skills';
 import { mulberry32, type Rng } from './rng';
 
 export type MissionType = 'explore' | 'gatherFood' | 'gatherResources';
@@ -104,7 +104,7 @@ export class Colony {
   constructor(seed?: number) {
     this.rng = seed === undefined ? Math.random : mulberry32(seed);
     this.buildings.push(makeBuilding('command', 'active'));
-    for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i));
+    for (let i = 0; i < C.START_CREW; i++) this.crew.push(makeCrew(i, this.rng));
     this.zones.push(makeZone(C.HOME_ZONE_NAME, C.HOME_ZONE_KIND, true, this.rng, this.season));
   }
 
@@ -383,6 +383,9 @@ export class Colony {
       const need = cons * dt; // food the crew must eat this tick
       m.starving = false;
 
+      // crew train their mission's skill the whole time they're away — travel, gather, return
+      for (const c of team) gainXp(c, MISSION_SKILL[m.type], C.MISSION_XP_PER_SEC * dt);
+
       if (m.phase === 'outbound') {
         m.phaseElapsed += dt;
         this.feed(m, need); // eating while traveling out
@@ -399,7 +402,6 @@ export class Colony {
         }
       } else if (m.phase === 'gathering') {
         m.phaseElapsed += dt;
-        for (const c of team) gainXp(c, MISSION_SKILL[m.type], C.GATHER_XP_PER_SEC * dt);
         const capacity = this.teamCapacity(team);
         const free = Math.max(0, capacity - m.provisions - m.cargo); // room left in the hold
         const abundance = this.abundanceOf(zone, m.type);
@@ -438,7 +440,6 @@ export class Colony {
           else if (m.type === 'gatherResources') this.iron = Math.min(this.ironCap, this.iron + amount);
           // unused rations go back into the larder
           if (m.provisions > 0) this.food = Math.min(this.foodCap, this.food + Math.round(m.provisions));
-          if (m.type === 'explore') for (const c of team) gainXp(c, MISSION_SKILL[m.type], C.EXPLORE_XP);
           this.completedMissions.unshift({
             id: m.id,
             type: m.type,
@@ -866,7 +867,7 @@ function makeZone(name: string, kind: string, home: boolean, rng: Rng, season: n
   };
 }
 
-function makeCrew(index: number): CrewMember {
+function makeCrew(index: number, rng: Rng): CrewMember {
   const name = C.CREW_NAMES[index % C.CREW_NAMES.length];
   return {
     id: genId(),
@@ -874,6 +875,7 @@ function makeCrew(index: number): CrewMember {
     health: C.START_HEALTH,
     task: 'building',
     skills: makeSkills(),
+    aptitude: makeAptitudes(rng),
   };
 }
 

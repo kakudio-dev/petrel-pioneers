@@ -3,9 +3,20 @@ import type { CrewMember } from '../sim/types';
 import type { SkillId } from '../sim/types';
 import { healthColor, secs } from './format';
 import { xpToNext } from '../sim/skills';
-import { SKILLS, MISSION_GOALS, type MissionGoal } from '../sim/config';
+import { SKILLS, MISSION_GOALS, MISSION_CREW_MAX, type MissionGoal } from '../sim/config';
 
-const GOAL_LABELS: Record<MissionGoal, string> = { short: 'Short', regular: 'Regular', long: 'Long' };
+const GOAL_LABELS: Record<MissionGoal, string> = { quick: 'Quick', regular: 'Regular' };
+
+/** Crew pick order for a mission's skill: most experienced first, then whoever is closest
+ *  to their next level (growth-rate-adjusted — a fast learner counts as "closer"). */
+function crewPickOrder(a: CrewMember, b: CrewMember, skillId: SkillId): number {
+  const la = a.skills[skillId].level;
+  const lb = b.skills[skillId].level;
+  if (la !== lb) return lb - la; // higher level first
+  const remA = (xpToNext(skillId, la) - a.skills[skillId].xp) / (a.aptitude[skillId] || 1);
+  const remB = (xpToNext(skillId, lb) - b.skills[skillId].xp) / (b.aptitude[skillId] || 1);
+  return remA - remB; // less growth-adjusted XP to next level first
+}
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -54,6 +65,7 @@ export function createMissionsPage(colony: Colony) {
   const teams = new Map<string, Set<number>>(); // open mission setup -> staged crew
   const goals = new Map<string, MissionGoal>(); // open mission setup -> chosen goal preset
   const goalOf = (key: string): MissionGoal => goals.get(key) ?? 'regular';
+  const choosing = new Map<string, number>(); // setup key -> the spot's crew id being reassigned
   let activeSig = '';
   let zoneSig = '';
   let recentSig = '';
@@ -74,13 +86,19 @@ export function createMissionsPage(colony: Colony) {
       <div class="prev-meta">costs ~${cost} food · ~${eta} round trip</div>`;
   }
 
-  // Crew may be staged in multiple pending setups at once; they only become
-  // exclusive when a mission is actually launched. A setup opens with `count` free
-  // crew assigned by default — the player adds or removes more.
-  function autoFill(key: string, count = 1) {
+  // Best free crew for a mission's skill, in pick order (most experienced first).
+  function rankedFree(skill: SkillId, excludeIds: Set<number>): CrewMember[] {
+    return colony.availableCrew
+      .filter((c) => !excludeIds.has(c.id))
+      .sort((a, b) => crewPickOrder(a, b, skill));
+  }
+  // Crew may be staged in multiple pending setups at once; they only become exclusive when
+  // a mission is launched. A setup opens auto-filled with the best `count` free crew.
+  function autoFill(key: string, count: number, skill: SkillId) {
     const t = new Set<number>();
-    for (const c of colony.availableCrew) {
-      if (t.size >= Math.max(1, count)) break;
+    const want = Math.min(Math.max(1, count), MISSION_CREW_MAX);
+    for (const c of rankedFree(skill, t)) {
+      if (t.size >= want) break;
       t.add(c.id);
     }
     teams.set(key, t);
@@ -89,15 +107,24 @@ export function createMissionsPage(colony: Colony) {
   function toggleZone(id: number) {
     if (openZones.has(id)) {
       openZones.delete(id);
-      for (const k of [...teams.keys()]) if (k.startsWith(`${id}:`)) teams.delete(k);
+      for (const k of [...teams.keys()]) if (k.startsWith(`${id}:`)) closeSetup(k);
     } else {
       openZones.add(id);
     }
     renderZones();
   }
+  // The mission type encoded in a setup key (`${zoneId}:${type}` or 'explore').
+  function typeForKey(key: string): MissionType {
+    return key === 'explore' ? 'explore' : (key.split(':')[1] as MissionType);
+  }
+  function closeSetup(key: string) {
+    teams.delete(key);
+    goals.delete(key);
+    choosing.delete(key);
+  }
   function toggleMission(key: string) {
-    if (teams.has(key)) teams.delete(key);
-    else autoFill(key);
+    if (teams.has(key)) closeSetup(key);
+    else autoFill(key, 1, colony.missionSkill(typeForKey(key)));
     renderZones();
   }
 
@@ -119,26 +146,42 @@ export function createMissionsPage(colony: Colony) {
   // create it, pre-filled with the original crew count.
   function toggleRecent(m: CompletedMission) {
     const key = `recent:${m.id}`;
-    if (teams.has(key)) teams.delete(key);
+    if (teams.has(key)) closeSetup(key);
     else {
       if (!canRerun(m)) return;
-      autoFill(key, m.crew);
+      autoFill(key, m.crew, colony.missionSkill(m.type));
     }
     renderRecent();
   }
 
   function setupHTML(key: string, type: MissionType, zoneId: number | null): string {
     const t = teams.get(key) ?? new Set<number>();
-    const team = colony.crew.filter((c) => t.has(c.id));
     const skill = colony.missionSkill(type);
-    const cards = team.map((c) => crewCardHTML(c, skill)).join('');
-    // can add another if any crew is neither away on a mission nor already on this team
-    const canAdd = colony.crew.some((c) => !colony.onMission(c.id) && !t.has(c.id));
-    const addCard = canAdd
-      ? '<button class="crew-add"><span class="msym">person_add</span><span>Add</span></button>'
-      : '';
-    const cardArea = cards || addCard ? `${cards}${addCard}` : '<div class="empty">No crew available.</div>';
-    // explore is a fixed there-and-back; gather missions let the player pick a cargo goal
+    const team = colony.crew.filter((c) => t.has(c.id)).sort((a, b) => crewPickOrder(a, b, skill));
+    const choosingId = choosing.get(key);
+
+    // crew-count stepper (1..MISSION_CREW_MAX, also bounded by available crew)
+    const canAdd = team.length < MISSION_CREW_MAX && colony.crew.some((c) => !colony.onMission(c.id) && !t.has(c.id));
+    const stepper = `<div class="crew-stepper">
+      <button class="crew-step" data-step="-1"${team.length > 1 ? '' : ' disabled'}><span class="msym">remove</span></button>
+      <span class="crew-count">${team.length} / ${MISSION_CREW_MAX} crew</span>
+      <button class="crew-step" data-step="1"${canAdd ? '' : ' disabled'}><span class="msym">add</span></button>
+    </div>`;
+
+    const cards = team.length
+      ? team.map((c) => crewCardHTML(c, skill, c.id === choosingId)).join('')
+      : '<div class="empty">No crew available.</div>';
+
+    // chooser: tap a spot to pick who fills it (candidates sorted best-first for this skill)
+    let chooser = '';
+    if (choosingId !== undefined) {
+      const candidates = colony.crew
+        .filter((c) => !colony.onMission(c.id) && (!t.has(c.id) || c.id === choosingId))
+        .sort((a, b) => crewPickOrder(a, b, skill));
+      chooser = `<div class="crew-chooser">${candidates.map((c) => chooserRowHTML(c, skill, c.id === choosingId)).join('')}</div>`;
+    }
+
+    // gather missions let the player pick a cargo goal; explore is a fixed there-and-back
     const goalToggle =
       type === 'explore'
         ? ''
@@ -149,7 +192,9 @@ export function createMissionsPage(colony: Colony) {
             )
             .join('')}</div>`;
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
-      <div class="crew-cards">${cardArea}</div>
+      ${stepper}
+      <div class="crew-cards">${cards}</div>
+      ${chooser}
       ${goalToggle}
       <div class="setup-preview">${previewHTML(type, zoneId, [...t], goalOf(key))}</div>
       <div class="setup-foot"><button class="setup-launch">Launch</button></div>
@@ -231,20 +276,48 @@ export function createMissionsPage(colony: Colony) {
       const zoneId = zraw === 'x' ? null : Number(zraw);
       const team = teams.get(key);
       if (!team) return;
+      const skill = colony.missionSkill(type);
 
-      setupEl.querySelectorAll('.crew-remove').forEach((btn) =>
+      // crew-count stepper: + auto-fills the best free crew, − drops the lowest-ranked
+      setupEl.querySelectorAll('.crew-step').forEach((btn) =>
         btn.addEventListener('click', () => {
-          team.delete(Number((btn as HTMLElement).dataset.crew));
+          const step = Number((btn as HTMLElement).dataset.step);
+          if (step > 0 && team.size < MISSION_CREW_MAX) {
+            const add = rankedFree(skill, team)[0];
+            if (add) team.add(add.id);
+          } else if (step < 0 && team.size > 1) {
+            const worst = colony.crew
+              .filter((c) => team.has(c.id))
+              .sort((a, b) => crewPickOrder(a, b, skill))
+              .pop();
+            if (worst) team.delete(worst.id);
+          }
+          choosing.delete(key);
           rerender();
         }),
       );
-      const addBtn = setupEl.querySelector('.crew-add');
-      if (addBtn)
-        addBtn.addEventListener('click', () => {
-          const add = colony.availableCrew.find((c) => !team.has(c.id));
-          if (add) team.add(add.id);
+      // tap a spot to open its chooser (or close it if already open)
+      setupEl.querySelectorAll('.crew-card').forEach((card) =>
+        card.addEventListener('click', () => {
+          const id = Number((card as HTMLElement).dataset.spot);
+          if (choosing.get(key) === id) choosing.delete(key);
+          else choosing.set(key, id);
           rerender();
-        });
+        }),
+      );
+      // pick a candidate to fill the open spot
+      setupEl.querySelectorAll('.chooser-row').forEach((row) =>
+        row.addEventListener('click', () => {
+          const spot = choosing.get(key);
+          const pick = Number((row as HTMLElement).dataset.pick);
+          if (spot !== undefined && pick !== spot) {
+            team.delete(spot);
+            team.add(pick);
+          }
+          choosing.delete(key);
+          rerender();
+        }),
+      );
       setupEl.querySelectorAll('.len-btn').forEach((btn) =>
         btn.addEventListener('click', () => {
           goals.set(key, (btn as HTMLElement).dataset.len as MissionGoal);
@@ -257,8 +330,7 @@ export function createMissionsPage(colony: Colony) {
         const committed = [...team];
         if (committed.length === 0) return;
         const goal = goalOf(key);
-        teams.delete(key);
-        goals.delete(key);
+        closeSetup(key);
         commitLaunch(type, zoneId, committed, goal);
         rerender();
       });
@@ -453,14 +525,26 @@ function crewRowHTML(c: CrewMember, removable = false, skillId: SkillId = 'explo
     ${tail}</div>`;
 }
 
-// Crew shown as a card in the mission prep screen.
-function crewCardHTML(c: CrewMember, skillId: SkillId): string {
+// A crew spot in the mission prep screen — tap it to choose who fills it.
+function crewCardHTML(c: CrewMember, skillId: SkillId, choosing: boolean): string {
   const skill = SKILLS[skillId];
-  return `<div class="crew-card" data-crew="${c.id}">
-    <button class="crew-remove" data-crew="${c.id}" title="Remove"><span class="msym">close</span></button>
+  return `<button class="crew-card${choosing ? ' choosing' : ''}" data-spot="${c.id}" data-crew="${c.id}">
     <span class="crew-av">${c.name[0]}</span>
     <span class="crew-name">${c.name}</span>
     <span class="mcrew-skill" data-skill="${skillId}" title="${skill.name}"><span class="msym skill-icon">${skill.icon}</span><span class="skill-lv"></span></span>
     <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
-  </div>`;
+  </button>`;
+}
+
+// A candidate row in the spot chooser, showing level and XP-to-next so the order reads clearly.
+function chooserRowHTML(c: CrewMember, skillId: SkillId, selected: boolean): string {
+  const skill = SKILLS[skillId];
+  const s = c.skills[skillId];
+  const toNext = Math.max(0, Math.round(xpToNext(skillId, s.level) - s.xp));
+  return `<button class="chooser-row${selected ? ' selected' : ''}" data-pick="${c.id}">
+    <span class="crew-av">${c.name[0]}</span>
+    <span class="crew-name">${c.name}</span>
+    <span class="chooser-skill"><span class="msym skill-icon">${skill.icon}</span> L${s.level}</span>
+    <span class="chooser-next">${toNext} to next</span>
+  </button>`;
 }

@@ -290,15 +290,15 @@ describe('Colony sim regression suite', () => {
     const cap = colony.partyCapacity([colony.crew[0].id]); // hold size
     colony.food = 1000; // larder isn't the limiter
 
-    // slow ore gather would "need" far more food than the cap -> capped at 50% of the hold
+    // slow ore gather would "need" far more food than the cap -> capped at Quick's 50% of the hold
     z.resourceAbundance = 50;
-    const shortOre = colony.missionRations('gatherResources', z.id, [colony.crew[0].id], C.MISSION_GOALS.short);
-    expect(shortOre).toBeCloseTo(cap * 0.5, 5);
+    const quickOre = colony.missionRations('gatherResources', z.id, [colony.crew[0].id], C.MISSION_GOALS.quick);
+    expect(quickOre).toBeCloseTo(cap * 0.5, 5);
 
-    // a net-positive food run needs little -> takes less than the cap
+    // a net-positive food run needs little -> takes less than the Regular (100%) cap
     z.distance = 5;
     z.foodAbundance = 300;
-    const food = colony.missionRations('gatherFood', z.id, [colony.crew[0].id], C.MISSION_GOALS.long);
+    const food = colony.missionRations('gatherFood', z.id, [colony.crew[0].id], C.MISSION_GOALS.regular);
     expect(food).toBeLessThan(cap * 1); // well under the 100% cap
     expect(food).toBeGreaterThan(0);
   });

@@ -185,28 +185,47 @@ body {
 }
 .crew-remove:hover { color: #ff6b6b; border-color: var(--line); }
 .crew-remove .msym { font-size: 18px; }
-/* crew shown as cards in the mission prep screen */
+/* crew-count stepper */
+.crew-stepper { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.crew-step {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border-radius: 6px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); cursor: pointer;
+}
+.crew-step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.crew-step:disabled { opacity: 0.35; cursor: default; }
+.crew-step .msym { font-size: 18px; }
+.crew-count { font-size: 12px; color: var(--ink-dim); }
+
+/* crew spots in the mission prep screen — tap to choose who fills the spot */
 .crew-cards { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .crew-card {
-  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
-  width: 96px; padding: 10px 8px 8px; border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit;
+  width: 96px; padding: 10px 8px 8px; border-radius: 8px; cursor: pointer; color: var(--ink);
   background: var(--panel); border: 1px solid var(--line);
 }
+.crew-card:hover { border-color: var(--accent); }
+.crew-card.choosing { border-color: var(--accent); background: #16242f; }
 .crew-card .crew-av { width: 30px; height: 30px; }
 .crew-card .crew-name { font-size: 12px; }
 .crew-card .mcrew-skill { gap: 3px; }
 .crew-card .mcrew-hp .cbar { width: 56px; }
-.crew-card .crew-remove {
-  position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+
+/* spot chooser — candidates sorted best-first for this mission's skill */
+.crew-chooser {
+  display: flex; flex-direction: column; gap: 4px; margin-top: 8px;
+  padding: 8px; border-radius: 8px; background: var(--panel); border: 1px solid #2d4a5e;
 }
-.crew-card .crew-remove .msym { font-size: 15px; }
-.crew-add {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  width: 96px; min-height: 92px; border-radius: 8px; font-size: 12px;
-  background: transparent; border: 1px dashed var(--line); color: var(--ink-dim); cursor: pointer;
+.chooser-row {
+  display: grid; grid-template-columns: 24px 1fr auto auto; gap: 10px; align-items: center;
+  font: inherit; text-align: left; font-size: 12px; color: var(--ink); cursor: pointer;
+  padding: 5px 6px; border-radius: 6px; background: transparent; border: 1px solid transparent;
 }
-.crew-add:hover { border-color: var(--accent); color: var(--accent); }
-.crew-add .msym { font-size: 20px; }
+.chooser-row:hover { border-color: var(--accent); }
+.chooser-row.selected { background: #16242f; border-color: var(--accent); }
+.chooser-row .crew-av { width: 22px; height: 22px; font-size: 11px; }
+.chooser-skill { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-dim); }
+.chooser-skill .skill-icon { font-size: 14px; color: var(--accent); }
+.chooser-next { font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
 
 /* recent completed missions log */
 .recent-list { display: flex; flex-direction: column; gap: 6px; }

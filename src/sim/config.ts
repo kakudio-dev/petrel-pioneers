@@ -129,8 +129,9 @@ export const MISSION_XP_PER_SEC = 1; // skill XP/sec each crew earns the whole t
 export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log
 // Mission length presets — the cargo goal as a fraction of the party's hold capacity.
 // The party heads home once it has gathered this much of the target resource.
-export const MISSION_GOALS = { short: 0.5, regular: 0.75, long: 1 } as const;
+export const MISSION_GOALS = { quick: 0.5, regular: 1 } as const;
 export type MissionGoal = keyof typeof MISSION_GOALS;
+export const MISSION_CREW_MAX = 4; // most crew that can be sent on one mission (to start)
 
 // --- Skills & leveling (generic — add a skill by extending SkillId + this table, then
 //     awarding its XP somewhere). Each level costs `baseXp` more than the last. ---

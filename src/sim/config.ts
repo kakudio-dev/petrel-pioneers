@@ -149,8 +149,8 @@ export const MAX_ABUNDANCE = 100;
 // SEASONS: Thaw, Highsun, Wane, Dark). Growth ADDS a fraction of the zone's fertility
 // score; decay REMOVES a fraction of current abundance. There is no upper cap — the
 // Wane/Dark decay settles food into a steady swing. Ore abundance ignores seasons.
-//   Thaw   +½ fertility   Highsun +1 fertility   Wane −25%   Dark −75%
-export const SEASON_FOOD_GROWTH = [0.5, 1.0, 0, 0]; // fraction of fertility score added
+//   Thaw   +1 fertility   Highsun +2 fertility   Wane −25%   Dark −75%
+export const SEASON_FOOD_GROWTH = [1.0, 2.0, 0, 0]; // fraction of fertility score added
 export const SEASON_FOOD_DECAY = [0, 0, 0.25, 0.75]; // fraction of current abundance removed
 
 // --- Zone geology (intrinsic, rolled once when a zone is discovered) ---

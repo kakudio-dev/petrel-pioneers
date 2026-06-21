@@ -220,7 +220,7 @@ describe('Colony sim regression suite', () => {
     const c = colony.crew[0];
     expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY); // level 0
     c.skills.explorer.level = 3;
-    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY + 3);
+    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY + 3 * C.CARRY_PER_LEVEL);
   });
 
   it('16. recall while gathering takes a full travel leg home', () => {
@@ -242,7 +242,7 @@ describe('Colony sim regression suite', () => {
     const colony = new Colony(1);
     const z = colony.zones[0];
     z.distance = 5;
-    z.foodAbundance = 100; // collection rate > consumption for one crew
+    z.foodAbundance = 300; // rich enough that collection rate > consumption for one crew
     const cons = 1 * C.FOOD_PER_CREW;
     const travel = colony.travelTime('gatherFood', z.id);
     const need = colony.provisionsNeeded('gatherFood', z.id, [colony.crew[0].id], 0.5);

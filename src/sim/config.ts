@@ -119,8 +119,8 @@ export const CREW_REQ: Record<BuildingType, number> = {
 // A party carries food rations (from the larder) and eats them as it goes; it travels out
 // (travel time = zone distance), gathers until its hold is full or it's down to the food it
 // needs to get home, then returns and delivers. Rations and gathered cargo share one hold.
-export const CREW_FIND_RATE = 0.02; // a crew's find "share" (feeds the gather rate), level 0
-export const CREW_CARRY = 20; // a crew's hold size — rations + gathered cargo combined (level 0)
+export const CREW_FIND_RATE = 0.01; // a crew's find "share" (feeds the gather rate), level 0
+export const CREW_CARRY = 10; // a crew's hold size — rations + gathered cargo combined (level 0)
 export const GATHER_RATE_SCALE = 0.1; // cargo/sec = (party find share) × abundance × this
 export const TRAVEL_SECONDS_PER_DISTANCE = 2; // one-way travel seconds per distance unit
 export const EXPLORE_DISTANCE = 5; // how far a scout ranges out (target zone is unknown)
@@ -143,7 +143,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   explorer: { name: 'Explorer', icon: 'explore', baseXp: 100 },
 };
 // Explorer bonuses applied per level (on top of the level-0 CREW_* values):
-export const CARRY_PER_LEVEL = 1; // +1 hold size per Explorer level
+export const CARRY_PER_LEVEL = 10; // +10 hold size per Explorer level
 export const FIND_PER_LEVEL = 0.01; // +1% find share per Explorer level
 // Abundance is a 0..MAX_ABUNDANCE score. Seasons change it discretely; an active gather
 // party depletes it continuously while working the zone.

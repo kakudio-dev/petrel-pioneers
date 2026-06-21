@@ -1,3 +1,5 @@
+import { SEASON_LENGTH } from '../sim/config';
+
 export function fmt(n: number, digits = 0): string {
   return n.toLocaleString('en-US', {
     minimumFractionDigits: digits,
@@ -5,15 +7,17 @@ export function fmt(n: number, digits = 0): string {
   });
 }
 
-/** Signed rate, e.g. "+12.4/s" or "-3.0/s". */
+/** Signed rate shown per season, from a per-second value, e.g. "+12.4/season". */
 export function rate(n: number): string {
-  const sign = n > 0.05 ? '+' : n < -0.05 ? '' : '±';
-  return `${sign}${n.toFixed(1)}/s`;
+  const perSeason = n * SEASON_LENGTH;
+  const sign = perSeason > 0.5 ? '+' : perSeason < -0.5 ? '' : '±';
+  return `${sign}${perSeason.toFixed(1)}/season`;
 }
 
 export function netClass(n: number): string {
-  if (n > 0.05) return 'pos';
-  if (n < -0.05) return 'neg';
+  const perSeason = n * SEASON_LENGTH;
+  if (perSeason > 0.5) return 'pos';
+  if (perSeason < -0.5) return 'neg';
   return 'zero';
 }
 

@@ -1,5 +1,9 @@
 import type { Colony } from '../sim/colony';
+import { SEASON_LENGTH } from '../sim/config';
 import { fmt, rate, netClass } from './format';
+
+// per-second flow → per-season, for the descriptive sub-lines
+const perSeason = (n: number) => n * SEASON_LENGTH;
 
 // Stocks panel (spec §6A). The net-flow number is the most important thing on
 // screen — it's how the player sees a bottleneck coming before it hits.
@@ -35,15 +39,15 @@ export function createStocksPanel() {
     refs.eVal.textContent = `${fmt(colony.E)} / ${fmt(colony.energyCap)}`;
     setNet(refs.eNet, f.energyNet);
     refs.eSub.textContent = f.brownout
-      ? `${f.poweredCount}/${f.consumerCount} powered · gen ${f.energyProduction.toFixed(0)} < use ${f.energyConsumption.toFixed(0)}`
-      : `gen ${f.energyProduction.toFixed(0)} · use ${f.energyConsumption.toFixed(0)}${f.storageWasted ? ' · full' : ''}`;
+      ? `${f.poweredCount}/${f.consumerCount} powered · gen ${perSeason(f.energyProduction).toFixed(0)} < use ${perSeason(f.energyConsumption).toFixed(0)}`
+      : `gen ${perSeason(f.energyProduction).toFixed(0)} · use ${perSeason(f.energyConsumption).toFixed(0)}${f.storageWasted ? ' · full' : ''}`;
     refs.eCard.classList.toggle('alarm', f.brownout);
 
     refs.iVal.textContent = `${fmt(colony.iron)} / ${fmt(colony.ironCap)}`;
     setNet(refs.iNet, f.ironNet);
     refs.iSub.textContent = f.ironWasted
-      ? `stockpile full · extracting ${f.ironProduced.toFixed(1)}/s wasted`
-      : `extracting ${f.ironProduced.toFixed(1)}/s`;
+      ? `stockpile full · extracting ${perSeason(f.ironProduced).toFixed(1)}/season wasted`
+      : `extracting ${perSeason(f.ironProduced).toFixed(1)}/season`;
 
     // Famine = the larder is empty AND crew is actively declining. At the exact
     // food-supportable equilibrium the larder sits empty but isn't a crisis.
@@ -51,10 +55,10 @@ export function createStocksPanel() {
     refs.fVal.textContent = `${fmt(colony.food)} / ${fmt(colony.foodCap)}`;
     setNet(refs.fNet, f.foodNet);
     refs.fSub.textContent = famine
-      ? `fed ${Math.round(f.foodRatio * 100)}% · grow ${f.foodProduction.toFixed(1)} < eat ${f.foodConsumption.toFixed(1)}`
+      ? `fed ${Math.round(f.foodRatio * 100)}% · grow ${perSeason(f.foodProduction).toFixed(0)} < eat ${perSeason(f.foodConsumption).toFixed(0)}`
       : f.starving
-        ? `larder empty · grow ${f.foodProduction.toFixed(1)} · eat ${f.foodConsumption.toFixed(1)}`
-        : `grow ${f.foodProduction.toFixed(1)} · eat ${f.foodConsumption.toFixed(1)}`;
+        ? `larder empty · grow ${perSeason(f.foodProduction).toFixed(0)} · eat ${perSeason(f.foodConsumption).toFixed(0)}`
+        : `grow ${perSeason(f.foodProduction).toFixed(0)} · eat ${perSeason(f.foodConsumption).toFixed(0)}`;
     refs.fCard.classList.toggle('alarm', famine);
 
     refs.cVal.textContent = `${fmt(colony.crewCount)} / ${fmt(colony.crewCapacity)}`;
@@ -84,7 +88,7 @@ function stockCard(key: string, label: string): string {
     <div class="stock s-${key}">
       <div class="label">${label}</div>
       <div class="value">—</div>
-      <div class="net zero">±0/s</div>
+      <div class="net zero">±0/season</div>
       <div class="sub2"></div>
     </div>`;
 }

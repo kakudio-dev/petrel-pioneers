@@ -49,16 +49,16 @@ export const FOOD_PRODUCTION: Record<BuildingType, number> = {
 
 // Starvation no longer kills on a timer — it drains crew health, and a crew member dies
 // only when their health reaches 0 (see HEALTH_* and crew death in colony.step).
-// The larder is provided by the command module: a fixed 30 (chosen as 5× the 6 starting
-// crew). It does NOT scale with current crew. Greenhouses add a little extra space.
+// The larder is provided by the command module: a fixed 250. It does NOT scale with
+// current crew. Greenhouses add a little extra space.
 export const FOOD_STORAGE: Record<BuildingType, number> = {
-  command: 30, // the larder
+  command: 250, // the larder
   generator: 0,
   extractor: 0,
   habitat: 0,
   greenhouse: 30, // each greenhouse adds a little larder space
 };
-export const CREW_FOOD_PER_SEASON = 2; // food each crew eats over one season
+export const CREW_FOOD_PER_SEASON = 10; // food each crew eats over one season
 export const FOOD_PER_CREW = CREW_FOOD_PER_SEASON / SEASON_LENGTH; // continuous eat rate (food/s)
 
 // --- Crew health (0..HEALTH_MAX %). Falls while the colony starves, recovers while fed. ---

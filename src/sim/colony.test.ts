@@ -27,10 +27,10 @@ describe('Colony sim regression suite', () => {
 
   it('3. food cap is the fixed command larder, not crew-scaled', () => {
     const colony = new Colony();
-    expect(colony.foodCap).toBe(30);
+    expect(colony.foodCap).toBe(250);
     expect(colony.foodCap).toBe(C.FOOD_STORAGE.command);
     colony.crew.length = 3;
-    expect(colony.foodCap).toBe(30);
+    expect(colony.foodCap).toBe(250);
   });
 
   it('4. crew start at full health', () => {
@@ -111,7 +111,7 @@ describe('Colony sim regression suite', () => {
   it('10. foragers do not eat from the larder', () => {
     const colony = new Colony(1);
     colony.step(0.1);
-    expect(colony.flows.foodConsumption).toBeCloseTo(6 * (2 / 60), 5); // 0.2
+    expect(colony.flows.foodConsumption).toBeCloseTo(6 * (10 / 60), 5); // all 6 eat
 
     const parked = { phase: 'returning' as const, phaseElapsed: 0, travelTime: 0, returnTime: 9999, cargo: 0 };
     colony.activeMissions.push({
@@ -122,7 +122,7 @@ describe('Colony sim regression suite', () => {
       ...parked,
     });
     colony.step(0.1);
-    expect(colony.flows.foodConsumption).toBeCloseTo(0.1, 5); // only 3 eat
+    expect(colony.flows.foodConsumption).toBeCloseTo(3 * (10 / 60), 5); // only 3 eat
 
     colony.activeMissions = [
       {
@@ -134,7 +134,7 @@ describe('Colony sim regression suite', () => {
       },
     ];
     colony.step(0.1);
-    expect(colony.flows.foodConsumption).toBeCloseTo(0.2, 5); // resource crew still eat
+    expect(colony.flows.foodConsumption).toBeCloseTo(6 * (10 / 60), 5); // resource crew still eat
   });
 
   it('11. recall while outbound returns over the distance already traveled', () => {

@@ -194,7 +194,7 @@ export class Colony {
   }
   /** A crew member's hold size — base capacity plus Explorer bonus. */
   private carryCap(c: CrewMember): number {
-    return C.CREW_CARRY_FOOD + skillLevel(c, 'explorer') * C.CARRY_PER_LEVEL;
+    return C.CREW_CARRY + skillLevel(c, 'explorer') * C.CARRY_PER_LEVEL;
   }
   private crewByIds(ids: number[]): CrewMember[] {
     return ids

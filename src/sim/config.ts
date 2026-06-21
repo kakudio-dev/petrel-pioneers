@@ -120,7 +120,7 @@ export const CREW_REQ: Record<BuildingType, number> = {
 // (travel time = zone distance), gathers until its hold is full or it's down to the food it
 // needs to get home, then returns and delivers. Rations and gathered cargo share one hold.
 export const CREW_FIND_RATE = 0.02; // a crew's find "share" (feeds the gather rate), level 0
-export const CREW_CARRY_FOOD = 20; // a crew's hold size — rations + cargo combined (level 0)
+export const CREW_CARRY = 20; // a crew's hold size — rations + gathered cargo combined (level 0)
 export const GATHER_RATE_SCALE = 0.1; // cargo/sec = (party find share) × abundance × this
 export const TRAVEL_SECONDS_PER_DISTANCE = 2; // one-way travel seconds per distance unit
 export const EXPLORE_DISTANCE = 5; // how far a scout ranges out (target zone is unknown)

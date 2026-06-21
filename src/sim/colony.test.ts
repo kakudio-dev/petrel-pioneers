@@ -41,7 +41,7 @@ describe('Colony sim regression suite', () => {
   it('5. party hold size sums crew holds; travel time scales with distance', () => {
     const colony = new Colony(1);
     const three = colony.crew.slice(0, 3).map((c) => c.id);
-    expect(colony.partyCapacity(three)).toBe(C.CREW_CARRY_FOOD * 3); // 2 * 3
+    expect(colony.partyCapacity(three)).toBe(C.CREW_CARRY * 3); // 2 * 3
     expect(colony.travelTime('gatherFood', colony.zones[0].id)).toBe(0); // home, no travel
     colony.zones[0].distance = 5;
     expect(colony.travelTime('gatherFood', colony.zones[0].id)).toBe(5 * C.TRAVEL_SECONDS_PER_DISTANCE);
@@ -218,9 +218,9 @@ describe('Colony sim regression suite', () => {
   it('15. Explorer levels raise hold size (+1 per level)', () => {
     const colony = new Colony(1);
     const c = colony.crew[0];
-    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY_FOOD); // level 0
+    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY); // level 0
     c.skills.explorer.level = 3;
-    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY_FOOD + 3);
+    expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY + 3);
   });
 
   it('16. recall while gathering takes a full travel leg home', () => {

@@ -127,9 +127,10 @@ export const EXPLORE_DISTANCE = 5; // how far a scout ranges out (target zone is
 export const ZONE_DISTANCE_RANGE: [number, number] = [3, 10]; // distance from the hub for new zones
 export const MISSION_XP_PER_SEC = 1; // skill XP/sec each crew earns the whole time it's on a mission
 export const RECENT_MISSIONS = 5; // how many completed missions to keep in the log
-// Mission length presets — how many seasons of rations the party provisions for.
-export const MISSION_LENGTHS = { short: 0.25, regular: 0.5, long: 1 } as const;
-export type MissionLength = keyof typeof MISSION_LENGTHS;
+// Mission length presets — the cargo goal as a fraction of the party's hold capacity.
+// The party heads home once it has gathered this much of the target resource.
+export const MISSION_GOALS = { short: 0.5, regular: 0.75, long: 1 } as const;
+export type MissionGoal = keyof typeof MISSION_GOALS;
 
 // --- Skills & leveling (generic — add a skill by extending SkillId + this table, then
 //     awarding its XP somewhere). Each level costs `baseXp` more than the last. ---

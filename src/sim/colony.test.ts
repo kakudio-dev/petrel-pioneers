@@ -54,7 +54,7 @@ describe('Colony sim regression suite', () => {
   it('6. a gather run draws rations, delivers ore, and works the zone', () => {
     const colony = new Colony(1);
     const z = colony.zones[0]; // home -> no travel
-    z.resourceAbundance = 100;
+    z.resourceAbundance = 1000; // rich, so gathering is fast enough to fit in the hold
     colony.iron = 0;
     colony.food = 100;
     const foodBefore = colony.food;
@@ -63,7 +63,7 @@ describe('Colony sim regression suite', () => {
     for (let i = 0; i < 3000 && colony.activeMissions.length; i++) colony.step(0.1);
 
     expect(colony.iron).toBeGreaterThan(0); // delivered ore
-    expect(z.resourceAbundance).toBeLessThan(100); // zone worked
+    expect(z.resourceAbundance).toBeLessThan(1000); // zone worked
     expect(colony.completedMissions[0].duration).toBeGreaterThan(0);
   });
 
@@ -90,7 +90,7 @@ describe('Colony sim regression suite', () => {
       returnTime: 9999,
       cargo: 0,
       provisions: 9999, // well-stocked, so it never starves during the test
-      lengthSeasons: 0.5,
+      goal: 0,
       starving: false,
       startedAt: 0,
     });
@@ -131,7 +131,7 @@ describe('Colony sim regression suite', () => {
       returnTime: 9999,
       cargo: 0,
       provisions: 9999,
-      lengthSeasons: 0.5,
+      goal: 0,
       starving: false,
       startedAt: 0,
     };
@@ -177,7 +177,7 @@ describe('Colony sim regression suite', () => {
       returnTime: 9999,
       cargo: 0,
       provisions: 9999, // stocked with rations -> away crew stays fed
-      lengthSeasons: 0.5,
+      goal: 0,
       starving: false,
       startedAt: 0,
     });
@@ -246,7 +246,7 @@ describe('Colony sim regression suite', () => {
     const colony = new Colony(1);
     const z = colony.zones[0];
     z.distance = 3; // travelTime 6
-    z.resourceAbundance = 100;
+    z.resourceAbundance = 1000; // rich, so the run is still gathering (not done) at 7s
     colony.launchMission('gatherResources', z.id, [colony.crew[0].id]);
     for (let i = 0; i < 70; i++) colony.step(0.1); // 6s travel + 1s gather -> gathering
     const m = colony.activeMissions[0];

@@ -3,9 +3,9 @@ import type { CrewMember } from '../sim/types';
 import type { SkillId } from '../sim/types';
 import { healthColor, secs } from './format';
 import { xpToNext } from '../sim/skills';
-import { SKILLS, MISSION_LENGTHS, type MissionLength } from '../sim/config';
+import { SKILLS, MISSION_GOALS, type MissionGoal } from '../sim/config';
 
-const LENGTH_LABELS: Record<MissionLength, string> = { short: 'Short', regular: 'Regular', long: 'Long' };
+const GOAL_LABELS: Record<MissionGoal, string> = { short: 'Short', regular: 'Regular', long: 'Long' };
 
 const LABEL: Record<MissionType, string> = {
   explore: 'Explore',
@@ -52,21 +52,26 @@ export function createMissionsPage(colony: Colony) {
   if (home) openZones.add(home.id);
   const openMissions = new Set<number>(); // active missions expanded to show their crew
   const teams = new Map<string, Set<number>>(); // open mission setup -> staged crew
-  const lengths = new Map<string, MissionLength>(); // open mission setup -> chosen length
-  const lengthOf = (key: string): MissionLength => lengths.get(key) ?? 'regular';
+  const goals = new Map<string, MissionGoal>(); // open mission setup -> chosen goal preset
+  const goalOf = (key: string): MissionGoal => goals.get(key) ?? 'regular';
   let activeSig = '';
   let zoneSig = '';
   let recentSig = '';
   const fills = new Map<number, { fill: HTMLElement; left: HTMLElement; phase: HTMLElement }>();
 
-  // Pre-launch preview: what the party would bring back and roughly how long a round trip takes.
-  function previewText(type: MissionType, zoneId: number | null, crewIds: number[], length: MissionLength): string {
-    const seasons = MISSION_LENGTHS[length];
-    const eta = secs(colony.estimateRunSeconds(type, zoneId, crewIds, seasons));
-    if (type === 'explore')
-      return colony.zonesRemaining ? `Discover a new zone · ~${eta}` : 'Region fully explored';
-    const unit = type === 'gatherFood' ? 'food' : 'ore';
-    return `hold ${colony.partyCapacity(crewIds)} ${unit} · ~${eta} round trip`;
+  // Pre-launch preview: the goal, the food it costs, and an approximate round-trip time.
+  function previewHTML(type: MissionType, zoneId: number | null, crewIds: number[], goal: MissionGoal): string {
+    const fraction = MISSION_GOALS[goal];
+    const cost = Math.round(colony.provisionsNeeded(type, zoneId, crewIds, fraction));
+    const eta = secs(colony.estimateRunSeconds(type, zoneId, crewIds, fraction));
+    const headline =
+      type === 'explore'
+        ? colony.zonesRemaining
+          ? 'Goal: discover a new zone'
+          : 'Region fully explored'
+        : `Goal: collect ${colony.goalAmount(crewIds, fraction)} ${type === 'gatherFood' ? 'food' : 'ore'}`;
+    return `<div class="prev-goal">${headline}</div>
+      <div class="prev-meta">costs ~${cost} food · ~${eta} round trip</div>`;
   }
 
   // Crew may be staged in multiple pending setups at once; they only become
@@ -97,9 +102,9 @@ export function createMissionsPage(colony: Colony) {
   }
 
   // Launch a mission and clear the committed crew from any other pending setups.
-  function commitLaunch(type: MissionType, zoneId: number | null, crewIds: number[], length: MissionLength) {
+  function commitLaunch(type: MissionType, zoneId: number | null, crewIds: number[], goal: MissionGoal) {
     if (crewIds.length === 0) return;
-    colony.launchMission(type, zoneId, crewIds, MISSION_LENGTHS[length]);
+    colony.launchMission(type, zoneId, crewIds, MISSION_GOALS[goal]);
     for (const [, t] of teams) for (const id of crewIds) t.delete(id);
     renderZones();
   }
@@ -126,29 +131,28 @@ export function createMissionsPage(colony: Colony) {
     const t = teams.get(key) ?? new Set<number>();
     const team = colony.crew.filter((c) => t.has(c.id));
     const skill = colony.missionSkill(type);
-    const rows = team.map((c) => crewRowHTML(c, true, skill)).join('');
+    const cards = team.map((c) => crewCardHTML(c, skill)).join('');
     // can add another if any crew is neither away on a mission nor already on this team
     const canAdd = colony.crew.some((c) => !colony.onMission(c.id) && !t.has(c.id));
-    const addRow = canAdd
-      ? '<button class="crew-add"><span class="msym">person_add</span> Add crew</button>'
+    const addCard = canAdd
+      ? '<button class="crew-add"><span class="msym">person_add</span><span>Add</span></button>'
       : '';
-    // explore is a fixed there-and-back; gather missions let the player pick how long to provision for
-    const lengthToggle =
+    const cardArea = cards || addCard ? `${cards}${addCard}` : '<div class="empty">No crew available.</div>';
+    // explore is a fixed there-and-back; gather missions let the player pick a cargo goal
+    const goalToggle =
       type === 'explore'
         ? ''
-        : `<div class="length-toggle">${(Object.keys(MISSION_LENGTHS) as MissionLength[])
+        : `<div class="goal-toggle">${(Object.keys(MISSION_GOALS) as MissionGoal[])
             .map(
-              (l) =>
-                `<button class="len-btn${lengthOf(key) === l ? ' active' : ''}" data-len="${l}">${LENGTH_LABELS[l]}</button>`,
+              (g) =>
+                `<button class="len-btn${goalOf(key) === g ? ' active' : ''}" data-len="${g}">${GOAL_LABELS[g]} ${Math.round(MISSION_GOALS[g] * 100)}%</button>`,
             )
             .join('')}</div>`;
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
-      <div class="mcrew-list">${rows}${addRow || (rows ? '' : '<div class="empty">No crew available.</div>')}</div>
-      ${lengthToggle}
-      <div class="setup-foot">
-        <span class="setup-preview">${previewText(type, zoneId, [...t], lengthOf(key))}</span>
-        <button class="setup-launch">Launch</button>
-      </div>
+      <div class="crew-cards">${cardArea}</div>
+      ${goalToggle}
+      <div class="setup-preview">${previewHTML(type, zoneId, [...t], goalOf(key))}</div>
+      <div class="setup-foot"><button class="setup-launch">Launch</button></div>
     </div>`;
   }
 
@@ -243,7 +247,7 @@ export function createMissionsPage(colony: Colony) {
         });
       setupEl.querySelectorAll('.len-btn').forEach((btn) =>
         btn.addEventListener('click', () => {
-          lengths.set(key, (btn as HTMLElement).dataset.len as MissionLength);
+          goals.set(key, (btn as HTMLElement).dataset.len as MissionGoal);
           rerender();
         }),
       );
@@ -252,10 +256,10 @@ export function createMissionsPage(colony: Colony) {
       launch.addEventListener('click', () => {
         const committed = [...team];
         if (committed.length === 0) return;
-        const length = lengthOf(key);
+        const goal = goalOf(key);
         teams.delete(key);
-        lengths.delete(key);
-        commitLaunch(type, zoneId, committed, length);
+        goals.delete(key);
+        commitLaunch(type, zoneId, committed, goal);
         rerender();
       });
     });
@@ -326,9 +330,8 @@ export function createMissionsPage(colony: Colony) {
         progress = m.travelTime > 0 ? m.phaseElapsed / m.travelTime : 1;
         phaseText = `${m.type === 'explore' ? 'Scouting' : 'Traveling out'} · ${rations}`;
       } else if (m.phase === 'gathering') {
-        const cap = colony.partyCapacity(m.crewIds);
-        progress = cap > 0 ? (m.provisions + m.cargo) / cap : 1;
-        phaseText = `Gathering · ${Math.floor(m.cargo)} ${unit} · ${rations}`;
+        progress = m.goal > 0 ? m.cargo / m.goal : 1; // fill the bar toward the goal
+        phaseText = `Gathering · ${Math.floor(m.cargo)}/${m.goal} ${unit} · ${rations}`;
       } else {
         progress = m.returnTime > 0 ? m.phaseElapsed / m.returnTime : 1;
         phaseText =
@@ -367,7 +370,7 @@ export function createMissionsPage(colony: Colony) {
 
   // Live-fill HP and the Explorer level/XP bar on every mission crew row.
   function updateCrewStats() {
-    el.querySelectorAll('.mcrew-row[data-crew]').forEach((row) => {
+    el.querySelectorAll('.mcrew-row[data-crew], .crew-card[data-crew]').forEach((row) => {
       const c = colony.crew.find((x) => x.id === Number((row as HTMLElement).dataset.crew));
       if (!c) return;
       const fill = row.querySelector('.cbarf.hp') as HTMLElement | null;
@@ -448,4 +451,16 @@ function crewRowHTML(c: CrewMember, removable = false, skillId: SkillId = 'explo
     <span class="mcrew-skill" data-skill="${skillId}" title="${skill.name}"><span class="msym skill-icon">${skill.icon}</span><span class="skill-lv"></span><span class="cbar xp"><span class="cbarf xpf"></span></span></span>
     <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
     ${tail}</div>`;
+}
+
+// Crew shown as a card in the mission prep screen.
+function crewCardHTML(c: CrewMember, skillId: SkillId): string {
+  const skill = SKILLS[skillId];
+  return `<div class="crew-card" data-crew="${c.id}">
+    <button class="crew-remove" data-crew="${c.id}" title="Remove"><span class="msym">close</span></button>
+    <span class="crew-av">${c.name[0]}</span>
+    <span class="crew-name">${c.name}</span>
+    <span class="mcrew-skill" data-skill="${skillId}" title="${skill.name}"><span class="msym skill-icon">${skill.icon}</span><span class="skill-lv"></span></span>
+    <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
+  </div>`;
 }

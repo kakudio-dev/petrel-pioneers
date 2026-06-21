@@ -43,7 +43,7 @@ export interface Mission {
   returnTime: number; // duration of the return leg (full travelTime, or less if recalled outbound)
   cargo: number; // units gathered so far (shares the hold with provisions)
   provisions: number; // food rations remaining (eaten by the crew over the run)
-  lengthSeasons: number; // seasons of rations provisioned (short/regular/long)
+  goal: number; // target cargo to gather before heading home (short/regular/long)
   starving: boolean; // set per tick when the party can't feed itself this tick
   startedAt: number; // colony elapsed time at launch (for total duration)
   discovered?: string; // explore: the zone name discovered on arrival
@@ -232,83 +232,83 @@ export class Colony {
   partyCapacity(crewIds: number[]): number {
     return this.teamCapacity(this.crewByIds(crewIds));
   }
-  /** Estimated seconds to fill a hold from `fromCargo` at `abundance` — a forward sim that
-   *  accounts for the zone depleting as it's worked (ignores future season shifts). */
-  private gatherSeconds(team: CrewMember[], abundance: number, fromCargo: number, capacity: number): number {
+  /** Estimated seconds to gather `target` cargo from `fromCargo` at `abundance` — a forward
+   *  sim that accounts for the zone depleting as it's worked (ignores future season shifts). */
+  private gatherSeconds(team: CrewMember[], abundance: number, fromCargo: number, target: number): number {
     let cargo = fromCargo;
     let ab = abundance;
     let t = 0;
     const dt = 0.5;
-    while (cargo < capacity - 1e-6 && ab > 1e-6 && t < 600) {
+    while (cargo < target - 1e-6 && ab > 1e-6 && t < 600) {
       let g = this.gatherRate(team, ab) * dt;
-      g = Math.min(g, capacity - cargo, ab);
+      g = Math.min(g, target - cargo, ab);
       cargo += g;
       ab -= g;
       t += dt;
     }
     return t;
   }
-  /** Estimated seconds for a full round trip if launched now (preview) — the gather phase
-   *  is bounded by the chosen mission length (a party heads home when its rations run low). */
-  estimateRunSeconds(type: MissionType, zoneId: number | null, crewIds: number[], lengthSeasons: number): number {
+  /** The cargo a mission aims to gather: a fraction of the party's hold (short/regular/long). */
+  goalAmount(crewIds: number[], goalFraction: number): number {
+    return Math.round(this.teamCapacity(this.crewByIds(crewIds)) * goalFraction);
+  }
+  /** Estimated seconds for a full round trip if launched now (preview): travel out, gather
+   *  to the goal under current conditions, then travel back. */
+  estimateRunSeconds(type: MissionType, zoneId: number | null, crewIds: number[], goalFraction: number): number {
     const travel = this.travelTime(type, zoneId);
     if (type === 'explore') return travel * 2;
     const team = this.crewByIds(crewIds);
     const ab = this.abundanceOf(this.zones.find((z) => z.id === zoneId), type);
-    const gather = Math.min(this.gatherSeconds(team, ab, 0, this.teamCapacity(team)), lengthSeasons * C.SEASON_LENGTH);
-    return travel + gather + travel;
+    return travel + this.gatherSeconds(team, ab, 0, this.goalAmount(crewIds, goalFraction)) + travel;
   }
-  /** Estimated seconds until an active mission's hold is full (0 once it's returning),
-   *  bounded by the rations it set out with. */
-  missionTimeToFull(m: Mission): number {
+  /** Estimated seconds until an active mission reaches its goal (0 once it's returning). */
+  private missionTimeToGoal(m: Mission): number {
     if (m.type === 'explore' || m.phase === 'returning') return 0;
     const team = this.crewByIds(m.crewIds);
     const ab = this.abundanceOf(this.zones.find((z) => z.id === m.zoneId), m.type);
     const travelLeft = m.phase === 'outbound' ? Math.max(0, m.travelTime - m.phaseElapsed) : 0;
-    const gatheringElapsed = m.phase === 'gathering' ? m.phaseElapsed : 0;
-    const gatherBudget = Math.max(0, m.lengthSeasons * C.SEASON_LENGTH - gatheringElapsed);
-    const fill = Math.min(this.gatherSeconds(team, ab, m.cargo, this.teamCapacity(team)), gatherBudget);
-    return travelLeft + fill;
+    return travelLeft + this.gatherSeconds(team, ab, m.cargo, m.goal);
   }
   /** Estimated seconds until an active mission is back home and delivered. */
   missionEta(m: Mission): number {
     if (m.phase === 'returning') return Math.max(0, m.returnTime - m.phaseElapsed);
-    return this.missionTimeToFull(m) + m.travelTime;
+    return this.missionTimeToGoal(m) + m.travelTime;
   }
 
   /** Food a party eats per second. */
   private missionConsumption(team: CrewMember[]): number {
     return team.length * C.FOOD_PER_CREW;
   }
-  /** Rations a mission needs at launch. Everyone provisions to last `lengthSeasons`, but a
-   *  food-gather party that out-collects its appetite (net positive) only needs enough to
-   *  reach the zone; ore/explore parties also reserve the return trip (their cargo isn't
-   *  edible). Returns the ideal amount — the larder may not be able to supply all of it. */
-  provisionsNeeded(type: MissionType, zoneId: number | null, crewIds: number[], lengthSeasons: number): number {
+  /** Rations a mission needs at launch — enough to last the estimated round trip to its goal.
+   *  A food-gather party that out-collects its appetite only needs enough to reach the zone
+   *  (it eats the food it gathers); ore/explore parties carry the whole trip. The larder may
+   *  not be able to supply all of it. */
+  provisionsNeeded(type: MissionType, zoneId: number | null, crewIds: number[], goalFraction: number): number {
     const team = this.crewByIds(crewIds);
     if (team.length === 0) return 0;
     const cons = this.missionConsumption(team);
     const travel = this.travelTime(type, zoneId);
-    const lengthSeconds = lengthSeasons * C.SEASON_LENGTH;
     if (type === 'explore') return cons * 2 * travel; // there and back
+    const ab = this.abundanceOf(this.zones.find((z) => z.id === zoneId), type);
+    const gatherTime = this.gatherSeconds(team, ab, 0, this.goalAmount(crewIds, goalFraction));
     if (type === 'gatherFood') {
-      const coll0 = this.gatherRate(team, this.abundanceOf(this.zones.find((z) => z.id === zoneId), 'gatherFood'));
-      return cons * travel + Math.max(0, cons - coll0) * lengthSeconds; // self-feeds on the gathered food
+      const coll0 = this.gatherRate(team, ab);
+      return cons * travel + Math.max(0, cons - coll0) * gatherTime; // self-feeds on the gathered food
     }
-    return cons * (2 * travel + lengthSeconds); // gatherResources: rations for the whole trip
+    return cons * (2 * travel + gatherTime); // gatherResources: rations for the whole trip
   }
 
-  /** Launch a mission with a fixed team (crew ids) targeting an optional zone. Rations are
-   *  drawn from the larder (capped at what's available). */
+  /** Launch a mission with a fixed team (crew ids) targeting an optional zone. The goal is a
+   *  fraction of the hold; rations are drawn from the larder (capped at what's available). */
   launchMission(
     type: MissionType,
     zoneId: number | null,
     crewIds: number[],
-    lengthSeasons: number = C.MISSION_LENGTHS.regular,
+    goalFraction: number = C.MISSION_GOALS.regular,
   ): boolean {
     if (crewIds.length === 0) return false;
     const travelTime = this.travelTime(type, zoneId);
-    const provisions = Math.min(this.provisionsNeeded(type, zoneId, crewIds, lengthSeasons), this.food);
+    const provisions = Math.min(this.provisionsNeeded(type, zoneId, crewIds, goalFraction), this.food);
     this.food -= provisions;
     this.activeMissions.push({
       id: genId(),
@@ -321,7 +321,7 @@ export class Colony {
       returnTime: travelTime,
       cargo: 0,
       provisions,
-      lengthSeasons,
+      goal: this.goalAmount(crewIds, goalFraction),
       starving: false,
       startedAt: this.elapsed,
     });
@@ -424,11 +424,16 @@ export class Colony {
           this.feed(m, need);
         }
 
-        // head home when the hold is full, the food we can eat is down to the return trip,
-        // or the zone is tapped out
+        // head home when the goal is met, the hold is full, the food we can eat is down to
+        // the return trip, or the zone is tapped out
         const edible = m.provisions + (m.type === 'gatherFood' ? m.cargo : 0);
         const returnReserve = cons * m.travelTime;
-        if (m.provisions + m.cargo >= capacity - 1e-6 || edible <= returnReserve + 1e-6 || abundance <= 1e-6) {
+        if (
+          m.cargo >= m.goal - 1e-6 ||
+          m.provisions + m.cargo >= capacity - 1e-6 ||
+          edible <= returnReserve + 1e-6 ||
+          abundance <= 1e-6
+        ) {
           m.phase = 'returning';
           m.phaseElapsed = 0;
           m.returnTime = m.travelTime;

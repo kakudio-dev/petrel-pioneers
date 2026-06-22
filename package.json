@@ -4,6 +4,9 @@
   "version": "0.2.0",
   "type": "module",
   "description": "Petrel Pioneers — core loop prototype (v0.2). Automatic-with-direction colony sim.",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

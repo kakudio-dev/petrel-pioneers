@@ -168,6 +168,16 @@ body {
 .amission .amission-body { display: none; }
 .amission.open .amission-body { display: block; }
 .amission-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+/* gathering / consumption / net rates below the crew cards */
+.mrates {
+  display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px;
+  padding-top: 10px; border-top: 1px solid var(--line);
+}
+.mrate { display: inline-flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--ink-dim); }
+.mrate > span { font-size: 13px; font-weight: 600; color: var(--ink); }
+.mrate > span.pos { color: var(--pos); }
+.mrate > span.neg { color: var(--neg); }
+.mrate > span.zero { color: var(--ink-dim); }
 
 /* crew rows (missions setup + active) */
 .mcrew-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
@@ -186,29 +196,51 @@ body {
 .crew-remove:hover { color: #ff6b6b; border-color: var(--line); }
 .crew-remove .msym { font-size: 18px; }
 /* crew-count stepper */
-.crew-stepper { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.crew-step {
-  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
-  border-radius: 6px; background: var(--panel); border: 1px solid var(--line); color: var(--ink); cursor: pointer;
+/* stepper and Quick/Regular toggle share one row */
+.setup-controls { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.setup-controls .crew-stepper, .setup-controls .goal-toggle { margin-top: 0; }
+.setup-controls .crew-stepper { flex: none; }
+.setup-controls .goal-toggle { flex: 1; }
+.crew-stepper { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+/* compact vertical up/down spinner */
+.crew-spin {
+  display: flex; flex-direction: column; border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--line);
 }
-.crew-step:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.crew-step {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 14px;
+  background: var(--panel); border: 0; color: var(--ink); cursor: pointer; padding: 0;
+}
+.crew-spin .crew-step + .crew-step { border-top: 1px solid var(--line); }
+.crew-step:hover:not(:disabled) { color: var(--accent); }
 .crew-step:disabled { opacity: 0.35; cursor: default; }
-.crew-step .msym { font-size: 18px; }
-.crew-count { font-size: 12px; color: var(--ink-dim); }
+.crew-step .msym { font-size: 16px; line-height: 1; }
+.crew-count { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
 
 /* crew spots in the mission prep screen — tap to choose who fills the spot */
 .crew-cards { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .crew-card {
-  display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit;
-  width: 96px; padding: 10px 8px 8px; border-radius: 8px; cursor: pointer; color: var(--ink);
-  background: var(--panel); border: 1px solid var(--line);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font: inherit;
+  width: 148px; padding: 12px 12px 10px; border-radius: 8px; cursor: pointer; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); text-align: left;
 }
 .crew-card:hover { border-color: var(--accent); }
 .crew-card.choosing { border-color: var(--accent); background: #16242f; }
-.crew-card .crew-av { width: 30px; height: 30px; }
-.crew-card .crew-name { font-size: 12px; }
-.crew-card .mcrew-skill { gap: 3px; }
-.crew-card .mcrew-hp .cbar { width: 56px; }
+/* read-only card (active mission) — no spot-picker affordance */
+.crew-card.static { cursor: default; }
+.crew-card.static:hover { border-color: var(--line); }
+.crew-card .crew-name { font-size: 13px; font-weight: 600; }
+.crew-card .mcrew-skill { gap: 4px; }
+.crew-card .mcrew-skill .cbar.xp { width: 48px; }
+.crew-card .skill-lv { min-width: 0; }
+/* health bar + percent share the full card width */
+.crew-card .mcrew-hp { display: flex; width: 100%; }
+.crew-card .mcrew-hp .cbar { flex: 1; width: auto; }
+.crew-card .mcrew-hp .hp-pct { flex: none; }
+/* per-crew carry capacity + gather-rate stats */
+.crew-card .crew-stats { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; }
+.crew-card .crew-stat { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.crew-card .crew-stat .msym { font-size: 15px; color: var(--accent); }
 
 /* spot chooser — candidates sorted best-first for this mission's skill */
 .crew-chooser {

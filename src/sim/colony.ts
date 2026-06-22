@@ -43,7 +43,8 @@ export interface Mission {
   returnTime: number; // duration of the return leg (full travelTime, or less if recalled outbound)
   cargo: number; // units gathered so far (shares the hold with provisions)
   provisions: number; // food rations remaining (eaten by the crew over the run)
-  goal: number; // target cargo to gather before heading home (short/regular/long)
+  goalFraction: number; // hold fraction the goal targets (Quick/Regular) — fixed at launch
+  goal: number; // target cargo before heading home; = goalFraction × current hold, refreshed live
   starving: boolean; // set per tick when the party can't feed itself this tick
   startedAt: number; // colony elapsed time at launch (for total duration)
   discovered?: string; // explore: the zone name discovered on arrival
@@ -191,13 +192,17 @@ export class Colony {
   get zonesRemaining(): boolean {
     return this.discoveredCount < C.ZONE_NAMES.length;
   }
-  /** A crew member's find "share" — base rate plus Explorer bonus (feeds the gather rate). */
+  /** A crew member's find "share" — base rate plus Explorer bonus, scaled by their hidden
+   *  Explorer aptitude (0.5×–2×, same roll that scales their XP gain). */
   private findRate(c: CrewMember): number {
-    return C.CREW_FIND_RATE + skillLevel(c, 'explorer') * C.FIND_PER_LEVEL;
+    const base = C.CREW_FIND_RATE + skillLevel(c, 'explorer') * C.FIND_PER_LEVEL;
+    return base * (c.aptitude.explorer ?? 1);
   }
-  /** A crew member's hold size — base capacity plus Explorer bonus. */
+  /** A crew member's hold size — base capacity plus Explorer bonus, scaled by their hidden
+   *  Explorer aptitude (0.5×–2×). Rounded so capacities stay whole. */
   private carryCap(c: CrewMember): number {
-    return C.CREW_CARRY + skillLevel(c, 'explorer') * C.CARRY_PER_LEVEL;
+    const base = C.CREW_CARRY + skillLevel(c, 'explorer') * C.CARRY_PER_LEVEL;
+    return Math.round(base * (c.aptitude.explorer ?? 1));
   }
   private crewByIds(ids: number[]): CrewMember[] {
     return ids
@@ -218,6 +223,20 @@ export class Colony {
   private abundanceOf(zone: Zone | undefined, type: MissionType): number {
     if (!zone) return 0;
     return type === 'gatherResources' ? zone.resourceAbundance : zone.foodAbundance;
+  }
+  /** A single crew member's hold contribution (carry capacity). */
+  crewCarry(c: CrewMember): number {
+    return this.carryCap(c);
+  }
+  /** A single crew member's gather rate (cargo/sec) at a zone — 0 for explore or no zone.
+   *  This is their marginal contribution: gather is additive across the party. */
+  crewGatherRate(c: CrewMember, zoneId: number | null, type: MissionType): number {
+    if (type === 'explore') return 0;
+    const ab = this.abundanceOf(
+      this.zones.find((z) => z.id === zoneId),
+      type,
+    );
+    return this.findRate(c) * ab * C.GATHER_RATE_SCALE;
   }
   /** The skill a mission type trains and reads (drives which level the UI shows). */
   missionSkill(type: MissionType): SkillId {
@@ -279,6 +298,21 @@ export class Colony {
   private missionConsumption(team: CrewMember[]): number {
     return team.length * C.FOOD_PER_CREW;
   }
+  /** Live cargo/sec an active mission's party is gathering right now (0 for explore or a
+   *  tapped-out zone). Reads current crew levels, so it tracks mid-mission level-ups. */
+  missionGatherRate(m: Mission): number {
+    if (m.type === 'explore') return 0;
+    const team = this.crewByIds(m.crewIds);
+    const ab = this.abundanceOf(
+      this.zones.find((z) => z.id === m.zoneId),
+      m.type,
+    );
+    return this.gatherRate(team, ab);
+  }
+  /** Live food/sec an active mission's party eats. */
+  missionFoodUse(m: Mission): number {
+    return this.missionConsumption(this.crewByIds(m.crewIds));
+  }
   /** Rations a mission needs at launch — enough to last the estimated round trip to its goal.
    *  A food-gather party that out-collects its appetite only needs enough to reach the zone
    *  (it eats the food it gathers); ore/explore parties carry the whole trip. The larder may
@@ -330,6 +364,7 @@ export class Colony {
       returnTime: travelTime,
       cargo: 0,
       provisions,
+      goalFraction,
       goal: this.goalAmount(crewIds, goalFraction),
       starving: false,
       startedAt: this.elapsed,
@@ -390,6 +425,10 @@ export class Colony {
     const done: number[] = [];
     for (const m of this.activeMissions) {
       const team = this.crewByIds(m.crewIds);
+      // Refresh the goal from current crew levels: if they level up mid-mission, their bigger
+      // hold raises the target (still goalFraction of capacity), and gatherRate/capacity below
+      // already read live levels, so the collection rate keeps pace too.
+      m.goal = this.goalAmount(m.crewIds, m.goalFraction);
       const zone = this.zones.find((z) => z.id === m.zoneId);
       const cons = this.missionConsumption(team);
       const need = cons * dt; // food the crew must eat this tick

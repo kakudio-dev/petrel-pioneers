@@ -27,6 +27,13 @@ export function secs(n: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+/** Approximate length in whole seasons, e.g. "Less than a season", "1 season", "2 seasons". */
+export function seasonsLabel(seconds: number): string {
+  if (seconds < SEASON_LENGTH) return 'Less than a season';
+  const n = Math.round(seconds / SEASON_LENGTH);
+  return `${n} season${n === 1 ? '' : 's'}`;
+}
+
 /** Health-bar colour by level: healthy green → warning amber → critical red. */
 export function healthColor(hp: number): string {
   if (hp < 25) return '#ff6b6b';

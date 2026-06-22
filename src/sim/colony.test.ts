@@ -45,8 +45,10 @@ describe('Colony sim regression suite', () => {
 
   it('5. party hold size sums crew holds; travel time scales with distance', () => {
     const colony = new Colony(1);
-    const three = colony.crew.slice(0, 3).map((c) => c.id);
-    expect(colony.partyCapacity(three)).toBe(C.CREW_CARRY * 3); // 2 * 3
+    const team = colony.crew.slice(0, 3);
+    team.forEach((c) => (c.aptitude.explorer = 1)); // isolate carry from aptitude scaling
+    const three = team.map((c) => c.id);
+    expect(colony.partyCapacity(three)).toBe(C.CREW_CARRY * 3);
     expect(colony.travelTime('gatherFood', colony.zones[0].id)).toBe(0); // home, no travel
     colony.zones[0].distance = 5;
     expect(colony.travelTime('gatherFood', colony.zones[0].id)).toBe(5 * C.TRAVEL_SECONDS_PER_DISTANCE);
@@ -92,6 +94,7 @@ describe('Colony sim regression suite', () => {
       cargo: 0,
       provisions: 9999, // well-stocked, so it never starves during the test
       goal: 0,
+      goalFraction: 1,
       starving: false,
       startedAt: 0,
     });
@@ -133,6 +136,7 @@ describe('Colony sim regression suite', () => {
       cargo: 0,
       provisions: 9999,
       goal: 0,
+      goalFraction: 1,
       starving: false,
       startedAt: 0,
     };
@@ -179,6 +183,7 @@ describe('Colony sim regression suite', () => {
       cargo: 0,
       provisions: 9999, // stocked with rations -> away crew stays fed
       goal: 0,
+      goalFraction: 1,
       starving: false,
       startedAt: 0,
     });
@@ -238,9 +243,44 @@ describe('Colony sim regression suite', () => {
   it('15. Explorer levels raise hold size (+1 per level)', () => {
     const colony = new Colony(1);
     const c = colony.crew[0];
+    c.aptitude.explorer = 1; // isolate carry from aptitude scaling
     expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY); // level 0
     c.skills.explorer.level = 3;
     expect(colony.partyCapacity([c.id])).toBe(C.CREW_CARRY + 3 * C.CARRY_PER_LEVEL);
+  });
+
+  it('15b. aptitude scales carry capacity and gather rate (0.5x–2x)', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0];
+    z.resourceAbundance = 100;
+    const c = colony.crew[0];
+    c.aptitude.explorer = 2; // top aptitude
+    expect(colony.crewCarry(c)).toBe(Math.round(C.CREW_CARRY * 2));
+    const fast = colony.crewGatherRate(c, z.id, 'gatherResources');
+    c.aptitude.explorer = 0.5; // bottom aptitude
+    expect(colony.crewCarry(c)).toBe(Math.round(C.CREW_CARRY * 0.5));
+    const slow = colony.crewGatherRate(c, z.id, 'gatherResources');
+    expect(fast).toBeCloseTo(slow * 4, 6); // 2x vs 0.5x -> 4x gather
+  });
+
+  it('15c. leveling up mid-mission raises the goal (still goalFraction of the bigger hold)', () => {
+    const colony = new Colony(1);
+    const z = colony.zones[0];
+    z.resourceAbundance = 1000;
+    const c = colony.crew[0];
+    c.aptitude.explorer = 1; // isolate from aptitude scaling
+    c.skills.explorer.level = 0;
+    colony.launchMission('gatherResources', z.id, [c.id], C.MISSION_GOALS.quick); // 50%
+    colony.step(0.1);
+    const m = colony.activeMissions[0];
+    const goalBefore = m.goal; // 50% of a level-0 hold
+    expect(goalBefore).toBeCloseTo(C.CREW_CARRY * 0.5, 0);
+
+    c.skills.explorer.level = 3; // promoted mid-mission -> hold grows
+    colony.step(0.1);
+    expect(m.goalFraction).toBe(C.MISSION_GOALS.quick); // fraction unchanged
+    expect(m.goal).toBeCloseTo((C.CREW_CARRY + 3 * C.CARRY_PER_LEVEL) * 0.5, 0); // goal grew
+    expect(m.goal).toBeGreaterThan(goalBefore);
   });
 
   it('16. recall while gathering takes a full travel leg home', () => {

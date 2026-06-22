@@ -1,21 +1,19 @@
 import type { Colony, CompletedMission, MissionType } from '../sim/colony';
 import type { CrewMember } from '../sim/types';
 import type { SkillId } from '../sim/types';
-import { healthColor, secs } from './format';
+import { healthColor, netClass, rate, seasonsLabel, secs } from './format';
 import { xpToNext } from '../sim/skills';
-import { SKILLS, MISSION_GOALS, MISSION_CREW_MAX, type MissionGoal } from '../sim/config';
+import { SKILLS, MISSION_GOALS, MISSION_CREW_MAX, SEASON_LENGTH, type MissionGoal } from '../sim/config';
 
 const GOAL_LABELS: Record<MissionGoal, string> = { quick: 'Quick', regular: 'Regular' };
 
-/** Crew pick order for a mission's skill: most experienced first, then whoever is closest
- *  to their next level (growth-rate-adjusted — a fast learner counts as "closer"). */
+/** Crew pick order for a mission's skill: highest innate aptitude first (the hidden learning
+ *  multiplier rolled at creation). Ties break on crew id for a stable order. */
 function crewPickOrder(a: CrewMember, b: CrewMember, skillId: SkillId): number {
-  const la = a.skills[skillId].level;
-  const lb = b.skills[skillId].level;
-  if (la !== lb) return lb - la; // higher level first
-  const remA = (xpToNext(skillId, la) - a.skills[skillId].xp) / (a.aptitude[skillId] || 1);
-  const remB = (xpToNext(skillId, lb) - b.skills[skillId].xp) / (b.aptitude[skillId] || 1);
-  return remA - remB; // less growth-adjusted XP to next level first
+  const apA = a.aptitude[skillId] ?? 1;
+  const apB = b.aptitude[skillId] ?? 1;
+  if (apA !== apB) return apB - apA; // higher aptitude first
+  return a.id - b.id; // stable tiebreak
 }
 
 const LABEL: Record<MissionType, string> = {
@@ -69,13 +67,23 @@ export function createMissionsPage(colony: Colony) {
   let activeSig = '';
   let zoneSig = '';
   let recentSig = '';
-  const fills = new Map<number, { fill: HTMLElement; left: HTMLElement; phase: HTMLElement }>();
+  const fills = new Map<
+    number,
+    {
+      fill: HTMLElement;
+      left: HTMLElement;
+      phase: HTMLElement;
+      gather: HTMLElement | null;
+      cons: HTMLElement | null;
+      net: HTMLElement | null;
+    }
+  >();
 
   // Pre-launch preview: the goal, the food it costs, and an approximate round-trip time.
   function previewHTML(type: MissionType, zoneId: number | null, crewIds: number[], goal: MissionGoal): string {
     const fraction = MISSION_GOALS[goal];
     const cost = Math.round(colony.missionRations(type, zoneId, crewIds, fraction));
-    const eta = secs(colony.estimateRunSeconds(type, zoneId, crewIds, fraction));
+    const eta = seasonsLabel(colony.estimateRunSeconds(type, zoneId, crewIds, fraction));
     const headline =
       type === 'explore'
         ? colony.zonesRemaining
@@ -83,7 +91,7 @@ export function createMissionsPage(colony: Colony) {
           : 'Region fully explored'
         : `Goal: collect ${colony.goalAmount(crewIds, fraction)} ${type === 'gatherFood' ? 'food' : 'ore'}`;
     return `<div class="prev-goal">${headline}</div>
-      <div class="prev-meta">costs ~${cost} food · ~${eta} round trip</div>`;
+      <div class="prev-meta">costs ~${cost} food · ${eta} round trip</div>`;
   }
 
   // Best free crew for a mission's skill, in pick order (most experienced first).
@@ -163,13 +171,15 @@ export function createMissionsPage(colony: Colony) {
     // crew-count stepper (1..MISSION_CREW_MAX, also bounded by available crew)
     const canAdd = team.length < MISSION_CREW_MAX && colony.crew.some((c) => !colony.onMission(c.id) && !t.has(c.id));
     const stepper = `<div class="crew-stepper">
-      <button class="crew-step" data-step="-1"${team.length > 1 ? '' : ' disabled'}><span class="msym">remove</span></button>
       <span class="crew-count">${team.length} / ${MISSION_CREW_MAX} crew</span>
-      <button class="crew-step" data-step="1"${canAdd ? '' : ' disabled'}><span class="msym">add</span></button>
+      <div class="crew-spin">
+        <button class="crew-step" data-step="1"${canAdd ? '' : ' disabled'}><span class="msym">keyboard_arrow_up</span></button>
+        <button class="crew-step" data-step="-1"${team.length > 1 ? '' : ' disabled'}><span class="msym">keyboard_arrow_down</span></button>
+      </div>
     </div>`;
 
     const cards = team.length
-      ? team.map((c) => crewCardHTML(c, skill, c.id === choosingId)).join('')
+      ? team.map((c) => crewCardHTML(c, skill, c.id === choosingId, colony, type, zoneId)).join('')
       : '<div class="empty">No crew available.</div>';
 
     // chooser: tap a spot to pick who fills it (candidates sorted best-first for this skill)
@@ -192,10 +202,9 @@ export function createMissionsPage(colony: Colony) {
             )
             .join('')}</div>`;
     return `<div class="setup" data-key="${key}" data-mt="${type}" data-zone="${zoneId ?? 'x'}">
-      ${stepper}
+      <div class="setup-controls">${goalToggle}${stepper}</div>
       <div class="crew-cards">${cards}</div>
       ${chooser}
-      ${goalToggle}
       <div class="setup-preview">${previewHTML(type, zoneId, [...t], goalOf(key))}</div>
       <div class="setup-foot"><button class="setup-launch">Launch</button></div>
     </div>`;
@@ -354,7 +363,7 @@ export function createMissionsPage(colony: Colony) {
           const team = m.crewIds
             .map((id) => colony.crew.find((c) => c.id === id))
             .filter(Boolean)
-            .map((c) => crewRowHTML(c as CrewMember, false, skill))
+            .map((c) => crewCardHTML(c as CrewMember, skill, false, colony, m.type, m.zoneId, false))
             .join('');
           const open = openMissions.has(m.id);
           const card = document.createElement('div');
@@ -369,7 +378,16 @@ export function createMissionsPage(colony: Colony) {
               <span class="msym m-chev">${open ? 'expand_less' : 'expand_more'}</span>
             </div>
             <div class="amission-body">
-              <div class="mcrew-list">${team}</div>
+              <div class="crew-cards">${team}</div>
+              ${
+                m.type === 'explore'
+                  ? ''
+                  : `<div class="mrates">
+                <span class="mrate" title="Total cargo the party gathers into the shared hold each season.">Gathering<span class="mr-gather"></span></span>
+                <span class="mrate" title="Food the crew eats from the hold each season.">Consumption<span class="mr-cons"></span></span>
+                <span class="mrate" title="Net change in the hold each season — gathering minus consumption.">Net<span class="mr-net"></span></span>
+              </div>`
+              }
               <div class="amission-foot"><button class="m-recall">Recall</button></div>
             </div>`;
           const recall = card.querySelector('.m-recall') as HTMLElement;
@@ -387,6 +405,9 @@ export function createMissionsPage(colony: Colony) {
             fill: card.querySelector('.m-fill') as HTMLElement,
             left: card.querySelector('.m-left') as HTMLElement,
             phase: card.querySelector('.m-phase') as HTMLElement,
+            gather: card.querySelector('.mr-gather'),
+            cons: card.querySelector('.mr-cons'),
+            net: card.querySelector('.mr-net'),
           });
         }
       }
@@ -412,6 +433,18 @@ export function createMissionsPage(colony: Colony) {
       r.fill.style.width = `${Math.min(100, progress * 100)}%`;
       r.phase.textContent = phaseText;
       r.left.textContent = `~${secs(colony.missionEta(m))}`;
+      if (r.gather && r.cons && r.net) {
+        // gathering only happens while working the zone; eating happens the whole trip
+        const gather = m.phase === 'gathering' ? colony.missionGatherRate(m) : 0;
+        const cons = colony.missionFoodUse(m);
+        const net = gather - cons;
+        r.gather.textContent = rate(gather);
+        r.gather.className = `mr-gather ${netClass(gather)}`;
+        r.cons.textContent = rate(-cons);
+        r.cons.className = `mr-cons ${netClass(-cons)}`;
+        r.net.textContent = rate(net);
+        r.net.className = `mr-net ${netClass(net)}`;
+      }
     }
 
     // zones (re-render on zone or mission-set change; keeps crew availability fresh)
@@ -512,28 +545,44 @@ function recentRowHTML(m: CompletedMission, rerunnable: boolean, open: boolean):
   </div>`;
 }
 
-function crewRowHTML(c: CrewMember, removable = false, skillId: SkillId = 'explorer'): string {
-  const tail = removable
-    ? `<button class="crew-remove" data-crew="${c.id}" title="Remove"><span class="msym">close</span></button>`
-    : '';
+// A crew card showing carry capacity, gather rate at the zone, and level + XP progress.
+// In the prep screen it's an interactive spot (tap to choose who fills it); on an active
+// mission it's a static read-out (interactive = false).
+function crewCardHTML(
+  c: CrewMember,
+  skillId: SkillId,
+  choosing: boolean,
+  colony: Colony,
+  type: MissionType,
+  zoneId: number | null,
+  interactive = true,
+): string {
   const skill = SKILLS[skillId];
-  return `<div class="mcrew-row" data-crew="${c.id}">
-    <span class="crew-av">${c.name[0]}</span>
+  const carry = colony.crewCarry(c);
+  const unit = type === 'gatherResources' ? 'ore' : 'food';
+  const perSeason = Math.round(colony.crewGatherRate(c, zoneId, type) * SEASON_LENGTH);
+  // Tooltips describe each stat qualitatively — what it is and what drives it, no formulas.
+  const carryTip = `How much cargo this crew member can haul home on a mission. More skilled gatherers can carry more.`;
+  const gatherTip = `This crew member is able to gather ${perSeason} ${unit} per season in this zone. This amount is determined by the amount of the resource available and the crew member's skill in gathering.`;
+  const skillTip = `${skill.name} skill — improves by going on missions. More skilled crew carry more and gather faster.`;
+  const hpTip = `Health — drops while the crew starves, recovers while fed. A crew member dies at 0.`;
+  const gatherStat =
+    type === 'explore'
+      ? ''
+      : `<span class="crew-stat"><span class="msym" title="${gatherTip}">eco</span>${rate(colony.crewGatherRate(c, zoneId, type))}</span>`;
+  const tag = interactive ? 'button' : 'div';
+  const attrs = interactive
+    ? `class="crew-card${choosing ? ' choosing' : ''}" data-spot="${c.id}" data-crew="${c.id}"`
+    : `class="crew-card static" data-crew="${c.id}"`;
+  return `<${tag} ${attrs}>
     <span class="crew-name">${c.name}</span>
-    <span class="mcrew-skill" data-skill="${skillId}" title="${skill.name}"><span class="msym skill-icon">${skill.icon}</span><span class="skill-lv"></span><span class="cbar xp"><span class="cbarf xpf"></span></span></span>
-    <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
-    ${tail}</div>`;
-}
-
-// A crew spot in the mission prep screen — tap it to choose who fills it.
-function crewCardHTML(c: CrewMember, skillId: SkillId, choosing: boolean): string {
-  const skill = SKILLS[skillId];
-  return `<button class="crew-card${choosing ? ' choosing' : ''}" data-spot="${c.id}" data-crew="${c.id}">
-    <span class="crew-av">${c.name[0]}</span>
-    <span class="crew-name">${c.name}</span>
-    <span class="mcrew-skill" data-skill="${skillId}" title="${skill.name}"><span class="msym skill-icon">${skill.icon}</span><span class="skill-lv"></span></span>
-    <span class="mcrew-hp"><span class="cbar"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
-  </button>`;
+    <span class="crew-stats">
+      <span class="crew-stat"><span class="msym" title="${carryTip}">inventory_2</span>+${carry} capacity</span>
+      ${gatherStat}
+    </span>
+    <span class="mcrew-skill" data-skill="${skillId}"><span class="msym skill-icon" title="${skillTip}">${skill.icon}</span><span class="skill-lv"></span><span class="cbar xp"><span class="cbarf xpf"></span></span></span>
+    <span class="mcrew-hp"><span class="cbar" title="${hpTip}"><span class="cbarf hp"></span></span><span class="hp-pct"></span></span>
+  </${tag}>`;
 }
 
 // A candidate row in the spot chooser, showing level and XP-to-next so the order reads clearly.

@@ -616,6 +616,30 @@ export class Colony {
   cancelResearch(techId: string): void {
     this.activeResearch = this.activeResearch.filter((r) => r.techId !== techId);
   }
+  /** Add an available crew member to an in-progress research project (up to the crew cap). */
+  addResearchCrew(techId: string, crewId: number): boolean {
+    const r = this.research(techId);
+    if (!r || r.crewIds.length >= C.MISSION_CREW_MAX) return false;
+    if (this.busy(crewId) || r.crewIds.includes(crewId)) return false;
+    r.crewIds.push(crewId);
+    return true;
+  }
+  /** Remove a crew member from a research project (never below one — use cancel to stop). */
+  removeResearchCrew(techId: string, crewId: number): boolean {
+    const r = this.research(techId);
+    if (!r || r.crewIds.length <= 1) return false;
+    r.crewIds = r.crewIds.filter((id) => id !== crewId);
+    return true;
+  }
+  /** Swap one crew member on a research project for an available one (keeps the count). */
+  swapResearchCrew(techId: string, outId: number, inId: number): boolean {
+    const r = this.research(techId);
+    if (!r || this.busy(inId) || r.crewIds.includes(inId)) return false;
+    const i = r.crewIds.indexOf(outId);
+    if (i < 0) return false;
+    r.crewIds[i] = inId;
+    return true;
+  }
   private processResearch(dt: number): void {
     const done: number[] = [];
     const xp = C.RESEARCH_XP_PER_SEC * dt;

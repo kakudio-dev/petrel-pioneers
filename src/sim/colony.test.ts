@@ -342,4 +342,38 @@ describe('Colony sim regression suite', () => {
     expect(food).toBeLessThan(cap * 1); // well under the 100% cap
     expect(food).toBeGreaterThan(0);
   });
+
+  it('20. research: cost paid up front, completes over time, unlocks the building', () => {
+    const colony = new Colony(1);
+    colony.food = 250;
+    expect(colony.canBuild('garden')).toBe(false); // gated behind the tech
+    const before = colony.food;
+    expect(colony.startResearch('subsistenceFarming', [colony.crew[0].id])).toBe(true);
+    expect(before - colony.food).toBe(C.TECHS[0].cost.food); // 50 food, up front
+    expect(colony.techStatus('subsistenceFarming')).toBe('researching');
+    for (let i = 0; i < 5000 && colony.activeResearch.length; i++) colony.step(0.1);
+    expect(colony.isResearched('subsistenceFarming')).toBe(true);
+    expect(colony.canBuild('garden')).toBe(true); // unlocked
+  });
+
+  it('21. research crew can be added, removed, and swapped mid-project', () => {
+    const colony = new Colony(1);
+    colony.food = 250;
+    const [a, b, c] = colony.crew;
+    colony.startResearch('subsistenceFarming', [a.id]);
+    expect(colony.research('subsistenceFarming')!.crewIds).toEqual([a.id]);
+
+    expect(colony.addResearchCrew('subsistenceFarming', b.id)).toBe(true);
+    expect(colony.research('subsistenceFarming')!.crewIds).toContain(b.id);
+    expect(colony.onResearch(b.id)).toBe(true); // now busy, off the available pool
+    expect(colony.availableCrew.some((x) => x.id === b.id)).toBe(false);
+
+    expect(colony.addResearchCrew('subsistenceFarming', b.id)).toBe(false); // already on it
+    expect(colony.swapResearchCrew('subsistenceFarming', a.id, c.id)).toBe(true);
+    expect(colony.research('subsistenceFarming')!.crewIds).toEqual([c.id, b.id]);
+
+    expect(colony.removeResearchCrew('subsistenceFarming', c.id)).toBe(true);
+    expect(colony.research('subsistenceFarming')!.crewIds).toEqual([b.id]);
+    expect(colony.removeResearchCrew('subsistenceFarming', b.id)).toBe(false); // never below one
+  });
 });

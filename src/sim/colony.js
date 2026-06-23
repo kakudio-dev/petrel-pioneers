@@ -10,6 +10,8 @@ const MISSION_SKILL = {
 };
 /** Traveling to and from a mission always trains Explorer, regardless of mission type. */
 const TRAVEL_SKILL = 'explorer';
+/** Researching a technology trains this skill. */
+const RESEARCH_SKILL = 'research';
 let nextId = 1;
 const genId = () => nextId++;
 const rollRange = ([lo, hi], rng) => lo + rng() * (hi - lo);
@@ -38,6 +40,9 @@ export class Colony {
     zones = [];
     activeMissions = [];
     completedMissions = []; // newest first, capped at C.RECENT_MISSIONS
+    // --- Research ---
+    activeResearch = [];
+    researched = new Set(); // ids of completed technologies
     // --- Space ---
     slotCap = C.SLOT_CAP_START;
     expandCount = 0;
@@ -56,7 +61,7 @@ export class Colony {
     }
     // --- Derived getters ---
     get slotsUsed() {
-        return this.buildings.filter((b) => b.type !== 'command').length;
+        return this.buildings.reduce((s, b) => s + C.BUILD_SLOTS[b.type], 0);
     }
     get freeSlots() {
         return this.slotCap - this.slotsUsed;
@@ -78,16 +83,24 @@ export class Colony {
     get crewCount() {
         return this.crew.length;
     }
-    /** Crew staffing buildings: task 'building' and not away on a mission. */
+    /** Crew staffing buildings: task 'building', not away on a mission, not researching. */
     get buildingCrew() {
-        return this.crew.filter((c) => c.task === 'building' && !this.onMission(c.id)).length;
+        return this.crew.filter((c) => c.task === 'building' && !this.onMission(c.id) && !this.onResearch(c.id)).length;
     }
     onMission(crewId) {
         return this.activeMissions.some((m) => m.crewIds.includes(crewId));
     }
-    /** Crew at base, free to be sent on a mission. */
+    /** Whether a crew member is currently assigned to a research project. */
+    onResearch(crewId) {
+        return this.activeResearch.some((r) => r.crewIds.includes(crewId));
+    }
+    /** Whether a crew member is occupied (mission or research) and unavailable. */
+    busy(crewId) {
+        return this.onMission(crewId) || this.onResearch(crewId);
+    }
+    /** Crew at base, free to be sent on a mission or assigned to research. */
     get availableCrew() {
-        return this.crew.filter((c) => !this.onMission(c.id));
+        return this.crew.filter((c) => !this.busy(c.id));
     }
     setTask(id, task) {
         const c = this.crew.find((x) => x.id === id);
@@ -462,6 +475,114 @@ export class Colony {
         if (done.length)
             this.activeMissions = this.activeMissions.filter((m) => !done.includes(m.id));
     }
+    // --- Research / technology ---
+    /** A technology definition by id. */
+    tech(id) {
+        return C.TECHS.find((t) => t.id === id);
+    }
+    isResearched(id) {
+        return this.researched.has(id);
+    }
+    isResearching(id) {
+        return this.activeResearch.some((r) => r.techId === id);
+    }
+    /** The active research project for a tech, if any. */
+    research(id) {
+        return this.activeResearch.find((r) => r.techId === id);
+    }
+    /** All prerequisites of a tech are researched (so it could be started). */
+    prereqsMet(id) {
+        const t = this.tech(id);
+        return !!t && t.requires.every((r) => this.researched.has(r));
+    }
+    /** Lifecycle status of a tech, for the tree UI. */
+    techStatus(id) {
+        if (this.isResearched(id))
+            return 'researched';
+        if (this.isResearching(id))
+            return 'researching';
+        return this.prereqsMet(id) ? 'available' : 'locked';
+    }
+    /** Techs that list `id` as a prerequisite (what it leads to). */
+    dependents(id) {
+        return C.TECHS.filter((t) => t.requires.includes(id));
+    }
+    /** Can the colony afford to begin researching this tech right now? */
+    canAffordTech(id) {
+        const t = this.tech(id);
+        if (!t)
+            return false;
+        return this.food >= (t.cost.food ?? 0) && this.iron >= (t.cost.iron ?? 0);
+    }
+    /** A crew member's research "share" per second — base + Research level, × their aptitude. */
+    researchRate(c) {
+        const base = C.CREW_RESEARCH_RATE + skillLevel(c, RESEARCH_SKILL) * C.RESEARCH_PER_LEVEL;
+        return base * (c.aptitude[RESEARCH_SKILL] ?? 1);
+    }
+    /** Public: a single crew member's research rate (points/sec). */
+    crewResearchRate(c) {
+        return this.researchRate(c) * C.RESEARCH_RATE_SCALE;
+    }
+    /** Live research points/sec a project's assigned crew produce together. */
+    projectResearchRate(r) {
+        let rate = 0;
+        for (const c of this.crewByIds(r.crewIds))
+            rate += this.researchRate(c);
+        return rate * C.RESEARCH_RATE_SCALE;
+    }
+    /** Estimated seconds until a research project finishes at its current rate. */
+    researchEta(r) {
+        const rate = this.projectResearchRate(r);
+        return rate > 1e-9 ? (r.cost - r.progress) / rate : Infinity;
+    }
+    /** The skill a tech trains while being researched (Research, for now). */
+    researchSkill() {
+        return RESEARCH_SKILL;
+    }
+    /** Begin researching a tech with a fixed crew. Deducts the tech's cost up front. Fails if
+     *  the tech is unknown, already done/in-progress, prereqs unmet, unaffordable, or no crew. */
+    startResearch(techId, crewIds) {
+        if (crewIds.length === 0)
+            return false;
+        const t = this.tech(techId);
+        if (!t)
+            return false;
+        if (this.techStatus(techId) !== 'available')
+            return false;
+        if (!this.canAffordTech(techId))
+            return false;
+        this.food -= t.cost.food ?? 0;
+        this.iron -= t.cost.iron ?? 0;
+        this.activeResearch.push({
+            id: genId(),
+            techId,
+            crewIds: [...crewIds],
+            progress: 0,
+            cost: t.researchCost,
+            startedAt: this.elapsed,
+        });
+        return true;
+    }
+    /** Cancel a research project. No refund (the cost was spent on setup). */
+    cancelResearch(techId) {
+        this.activeResearch = this.activeResearch.filter((r) => r.techId !== techId);
+    }
+    processResearch(dt) {
+        const done = [];
+        const xp = C.RESEARCH_XP_PER_SEC * dt;
+        for (const r of this.activeResearch) {
+            const team = this.crewByIds(r.crewIds);
+            for (const c of team)
+                gainXp(c, RESEARCH_SKILL, xp);
+            r.progress += this.projectResearchRate(r) * dt;
+            if (r.progress >= r.cost - 1e-6) {
+                this.researched.add(r.techId);
+                done.push(r.id);
+            }
+        }
+        if (done.length)
+            this.activeResearch = this.activeResearch.filter((r) => !done.includes(r.id));
+    }
     get expandCost() {
         return Math.round(C.EXPAND_BASE_COST * C.EXPAND_COST_GROWTH ** this.expandCount);
     }
@@ -469,10 +590,22 @@ export class Colony {
         return this.buildings.reduce((s, b) => (b.state === 'active' ? s + map[b.type] : s), 0);
     }
     // --- Player actions ---
-    build(type) {
+    /** Whether a building type may be built now: not the command module, its tech (if any)
+     *  is researched, and there are enough free slots for its footprint. */
+    canBuild(type) {
         if (type === 'command')
             return false;
-        if (this.freeSlots <= 0)
+        if (!this.techUnlocked(type))
+            return false;
+        return this.freeSlots >= C.BUILD_SLOTS[type];
+    }
+    /** A building type is buildable when it has no tech requirement, or that tech is done. */
+    techUnlocked(type) {
+        const req = C.BUILDING_TECH[type];
+        return !req || this.researched.has(req);
+    }
+    build(type) {
+        if (!this.canBuild(type))
             return false;
         this.buildings.push(makeBuilding(type, 'building'));
         return true;
@@ -491,7 +624,7 @@ export class Colony {
         if (!b || b.type === 'command')
             return;
         if (b.state === 'building') {
-            this.iron += C.REFUND_FRACTION * b.invested;
+            this.refundResource(C.BUILD_RESOURCE[b.type], C.REFUND_FRACTION * b.invested);
             this.buildings = this.buildings.filter((x) => x.id !== id);
         }
         else if (b.state === 'demolishing') {
@@ -528,6 +661,7 @@ export class Colony {
         this.elapsed += dt;
         this.processProjects(dt);
         this.processMissions(dt);
+        this.processResearch(dt);
         // Season-change event: fire once when the clock crosses into a new season.
         const seasonIdx = this.season;
         if (seasonIdx !== this.seasonIndex) {
@@ -670,7 +804,9 @@ export class Colony {
                 delta = drainPerSec * dt;
             }
             else {
-                const mult = c.task === 'building' ? C.HEAL_MULT_BUILDING : 1;
+                // researching is strenuous work, like staffing a building
+                const working = c.task === 'building' || this.onResearch(c.id);
+                const mult = working ? C.HEAL_MULT_BUILDING : 1;
                 delta = healPerSec * mult * dt;
             }
             c.health = clamp(c.health + delta, 0, C.HEALTH_MAX);
@@ -686,6 +822,9 @@ export class Colony {
             for (const m of this.activeMissions)
                 m.crewIds = m.crewIds.filter((id) => !deadIds.has(id));
             this.activeMissions = this.activeMissions.filter((m) => m.crewIds.length > 0);
+            for (const r of this.activeResearch)
+                r.crewIds = r.crewIds.filter((id) => !deadIds.has(id));
+            this.activeResearch = this.activeResearch.filter((r) => r.crewIds.length > 0);
         }
         if (this.crew.length === 0)
             this.failed = true;
@@ -717,16 +856,27 @@ export class Colony {
         }
         return { ironProduced, ironWasted };
     }
+    /** Add `amount` of a build resource back to its stock (iron uncapped, food capped). */
+    refundResource(res, amount) {
+        if (res === 'food')
+            this.food = Math.min(this.foodCap, this.food + amount);
+        else
+            this.iron += amount;
+    }
     processProjects(dt) {
-        let iron = this.iron;
         const finishedDemolish = [];
         for (const b of this.buildings) {
+            const res = C.BUILD_RESOURCE[b.type];
+            const cost = C.BUILD_COST[b.type];
+            const time = C.BUILD_TIME[b.type];
             if (b.state === 'building') {
-                const cost = C.BUILD_COST[b.type];
-                const time = C.BUILD_TIME[b.type];
+                const avail = res === 'food' ? this.food : this.iron;
                 const want = time > 0 ? cost * (dt / time) : cost;
-                const spend = Math.min(want, iron, cost - b.invested);
-                iron -= spend;
+                const spend = Math.min(want, avail, cost - b.invested);
+                if (res === 'food')
+                    this.food -= spend;
+                else
+                    this.iron -= spend;
                 b.invested += spend;
                 b.progress = cost > 0 ? b.invested / cost : 1;
                 if (b.invested >= cost - 1e-6) {
@@ -735,15 +885,13 @@ export class Colony {
                 }
             }
             else if (b.state === 'demolishing') {
-                const time = C.BUILD_TIME[b.type];
                 b.progress += time > 0 ? dt / time : 1;
                 if (b.progress >= 1) {
-                    iron += C.REFUND_FRACTION * C.BUILD_COST[b.type];
+                    this.refundResource(res, C.REFUND_FRACTION * cost);
                     finishedDemolish.push(b.id);
                 }
             }
         }
-        this.iron = iron;
         if (finishedDemolish.length) {
             this.buildings = this.buildings.filter((b) => !finishedDemolish.includes(b.id));
         }

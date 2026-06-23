@@ -19,6 +19,7 @@ export const ENERGY_PRODUCTION: Record<BuildingType, number> = {
   extractor: 0,
   habitat: 0,
   greenhouse: 0,
+  garden: 0,
 };
 export const ENERGY_DRAW: Record<BuildingType, number> = {
   command: 0,
@@ -26,6 +27,7 @@ export const ENERGY_DRAW: Record<BuildingType, number> = {
   extractor: 4, // E/s to run
   habitat: 2, // E/s life support
   greenhouse: 5, // E/s grow lights (hungry — light is scarce at aphelion)
+  garden: 0, // a garden grows in ambient light — no power needed
 };
 export const ENERGY_STORAGE: Record<BuildingType, number> = {
   command: 300, // the colony battery lives in the command module
@@ -33,6 +35,7 @@ export const ENERGY_STORAGE: Record<BuildingType, number> = {
   extractor: 0,
   habitat: 0,
   greenhouse: 0,
+  garden: 0,
 };
 
 // --- Food larder: production and storage per building type ---
@@ -45,6 +48,7 @@ export const FOOD_PRODUCTION: Record<BuildingType, number> = {
   extractor: 0,
   habitat: 0,
   greenhouse: 6, // +food/s at full staffing & power
+  garden: 4, // +food/s at full staffing — no power, but lower yield than a greenhouse
 };
 
 // Starvation no longer kills on a timer — it drains crew health, and a crew member dies
@@ -57,6 +61,7 @@ export const FOOD_STORAGE: Record<BuildingType, number> = {
   extractor: 0,
   habitat: 0,
   greenhouse: 30, // each greenhouse adds a little larder space
+  garden: 0,
 };
 export const CREW_FOOD_PER_SEASON = 10; // food each crew eats over one season
 export const FOOD_PER_CREW = CREW_FOOD_PER_SEASON / SEASON_LENGTH; // continuous eat rate (food/s)
@@ -79,6 +84,7 @@ export const IRON_STORAGE: Record<BuildingType, number> = {
   extractor: 60, // ore piles up at the extractor
   habitat: 0,
   greenhouse: 0,
+  garden: 0,
 };
 
 // --- Other building outputs ---
@@ -92,6 +98,34 @@ export const BUILD_COST: Record<BuildingType, number> = {
   extractor: 40,
   habitat: 60,
   greenhouse: 45,
+  garden: 20,
+};
+
+// What resource each building's construction (and refund) is paid in. Most cost iron;
+// the garden is built from seed stock and soil prep, so it costs food.
+export const BUILD_RESOURCE: Record<BuildingType, 'iron' | 'food'> = {
+  command: 'iron',
+  generator: 'iron',
+  extractor: 'iron',
+  habitat: 'iron',
+  greenhouse: 'iron',
+  garden: 'food',
+};
+
+// How many build slots each building occupies. Most take one; the garden needs room
+// to spread, so it takes two.
+export const BUILD_SLOTS: Record<BuildingType, number> = {
+  command: 0, // the command module is separate infra, not a slot
+  generator: 1,
+  extractor: 1,
+  habitat: 1,
+  greenhouse: 1,
+  garden: 2,
+};
+
+// A building type that requires a researched technology before it can be built.
+export const BUILDING_TECH: Partial<Record<BuildingType, string>> = {
+  garden: 'subsistenceFarming',
 };
 
 // Seconds to construct (the time floor — actual time is longer if iron-starved).
@@ -102,6 +136,7 @@ export const BUILD_TIME: Record<BuildingType, number> = {
   extractor: 6,
   habitat: 9,
   greenhouse: 7,
+  garden: 6,
 };
 export const REFUND_FRACTION = 0.5;
 
@@ -113,6 +148,7 @@ export const CREW_REQ: Record<BuildingType, number> = {
   extractor: 3,
   habitat: 0,
   greenhouse: 3,
+  garden: 2,
 };
 
 // --- Missions (zone expeditions that play out over time) ---
@@ -142,6 +178,7 @@ export interface SkillDef {
 }
 export const SKILLS: Record<SkillId, SkillDef> = {
   explorer: { name: 'Explorer', icon: 'explore', baseXp: 100 },
+  research: { name: 'Research', icon: 'science', baseXp: 100 },
 };
 // Each crew has a hidden, randomized aptitude per skill that scales how fast they earn its
 // XP — rolled once at creation in [APTITUDE_MIN, APTITUDE_MAX] (0.5× to 2× learning speed).
@@ -161,6 +198,44 @@ export const ORE_ABUNDANCE_MULT = 10; // a zone's starting ore abundance = ore r
 //   Thaw   +2 fertility   Highsun +5 fertility   Wane −25%   Dark −75%
 export const SEASON_FOOD_GROWTH = [2, 5, 0, 0]; // fraction of fertility score added
 export const SEASON_FOOD_DECAY = [0, 0, 0.25, 0.75]; // fraction of current abundance removed
+
+// --- Technology tree ---------------------------------------------------------------
+// Research plays out like a mission: assign crew to a tech and they accumulate research
+// points over time until it completes, unlocking its effects. The tech's resource cost
+// is paid up front when research begins.
+export interface TechDef {
+  id: string;
+  name: string;
+  icon: string; // Material Symbol shown on the tech node
+  description: string; // what the technology IS
+  enables: string; // what it unlocks / lets the player do
+  requires: string[]; // prerequisite tech ids (all must be researched first)
+  cost: { food?: number; iron?: number }; // paid up front to begin researching
+  researchCost: number; // research points needed to finish
+  unlocksBuilding?: BuildingType; // a building type this tech makes buildable
+}
+
+export const TECHS: TechDef[] = [
+  {
+    id: 'subsistenceFarming',
+    name: 'Subsistence Farming',
+    icon: 'agriculture',
+    description:
+      'Hardy cold-frame cultivation that needs no power — just soil, seed, and patient hands. The colony’s first step toward feeding itself instead of living out of the larder.',
+    enables: 'Unlocks the Garden — a low-tech food plot that produces food with no energy.',
+    requires: [],
+    cost: { food: 50 },
+    researchCost: 60,
+    unlocksBuilding: 'garden',
+  },
+];
+
+// Research speed: a crew's research "share" per second (base + per-level), scaled by their
+// hidden Research aptitude. A project's rate is the sum of its crew's shares × the scale.
+export const CREW_RESEARCH_RATE = 1; // research points/sec per crew (Research level 0)
+export const RESEARCH_PER_LEVEL = 0.5; // +per Research level
+export const RESEARCH_RATE_SCALE = 1; // multiplier on the summed party research rate
+export const RESEARCH_XP_PER_SEC = 1; // Research XP/sec each crew earns while researching
 
 // --- Zone geology (intrinsic, rolled once when a zone is discovered) ---
 // Fertility is the food carrying capacity: it caps food abundance, scales how fast

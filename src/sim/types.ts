@@ -1,7 +1,7 @@
 // Core sim types. A Colony is a fully self-contained sim object (see spec header
 // note): its own slots, stocks, directives. No global singletons anywhere.
 
-export type BuildingType = 'command' | 'generator' | 'extractor' | 'habitat' | 'greenhouse';
+export type BuildingType = 'command' | 'generator' | 'extractor' | 'habitat' | 'greenhouse' | 'garden';
 
 export type StaffStatus = 'staffed' | 'understaffed' | 'starved' | 'online';
 
@@ -11,7 +11,7 @@ export type CrewTask = 'building' | 'idle';
 
 /** Skills a crew member can train. Add a new one here, in config's SKILLS table, and
  *  wherever its XP is earned — the leveling machinery is generic. */
-export type SkillId = 'explorer';
+export type SkillId = 'explorer' | 'research';
 
 /** Per-crew progress in one skill. `xp` is progress toward the NEXT level (it resets
  *  on level-up); `level` is 0-based and drives the skill's bonuses. */
@@ -46,6 +46,17 @@ export interface Zone {
   // --- Current harvestable scores (depleted by gather parties, food shifts with seasons) ---
   foodAbundance: number;
   resourceAbundance: number;
+}
+
+/** A running research project: crew assigned to a technology, accumulating research
+ *  points over time until it completes (mirrors a Mission's lifecycle). */
+export interface ResearchProject {
+  id: number;
+  techId: string;
+  crewIds: number[];
+  progress: number; // research points accumulated so far
+  cost: number; // points needed to finish (cached from the tech def)
+  startedAt: number; // colony elapsed time at start (for duration/UI)
 }
 
 /** A building under construction, fully operational, or being torn down. Only

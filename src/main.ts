@@ -5,6 +5,7 @@ import { createStocksPanel } from './ui/stocksPanel';
 import { createBuildingsPanel } from './ui/buildingsPanel';
 import { createCrewPage } from './ui/crewPage';
 import { createMissionsPage } from './ui/missionsPage';
+import { createTechnologyPage } from './ui/technologyPage';
 import { createSummaryPage } from './ui/summaryPage';
 
 const app = document.getElementById('app')!;
@@ -18,11 +19,13 @@ const stocks = createStocksPanel();
 const summary = createSummaryPage();
 const crew = createCrewPage(colony);
 const missions = createMissionsPage(colony);
+const technology = createTechnologyPage(colony);
 const buildings = createBuildingsPanel(colony);
 
 const PAGES = [
   { id: 'summary', label: 'Summary', page: summary },
   { id: 'missions', label: 'Missions', page: missions },
+  { id: 'technology', label: 'Technology', page: technology },
   { id: 'crew', label: 'Crew', page: crew },
   { id: 'buildings', label: 'Buildings', page: buildings },
 ];

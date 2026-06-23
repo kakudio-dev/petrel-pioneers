@@ -2,22 +2,27 @@ import type { Colony } from '../sim/colony';
 import type { Building, BuildingType } from '../sim/types';
 import {
   BUILD_COST,
+  BUILD_RESOURCE,
+  BUILD_SLOTS,
   BUILD_TIME,
+  BUILDING_TECH,
   CREW_REQ,
   ENERGY_DRAW,
   ENERGY_PRODUCTION,
   EXPAND_SLOTS,
   REFUND_FRACTION,
+  TECHS,
 } from '../sim/config';
 import { fmt } from './format';
 
-const TYPES: BuildingType[] = ['generator', 'extractor', 'greenhouse', 'habitat'];
+const TYPES: BuildingType[] = ['generator', 'extractor', 'greenhouse', 'habitat', 'garden'];
 const TYPE_LABEL: Record<BuildingType, string> = {
   command: 'Command Module',
   generator: 'Generator',
   extractor: 'Extractor',
   greenhouse: 'Greenhouse',
   habitat: 'Habitat',
+  garden: 'Garden',
 };
 const TYPE_EFFECT: Record<BuildingType, string> = {
   command: '',
@@ -25,6 +30,19 @@ const TYPE_EFFECT: Record<BuildingType, string> = {
   extractor: '+8 ore/s · −4 E/s',
   greenhouse: '+6 food/s · −5 E/s',
   habitat: '+5 cap · −2 E/s',
+  garden: '+4 food/s · no power',
+};
+/** The stock a building's cost is paid in, as a UI label ("ore" or "food"). */
+const costUnit = (t: BuildingType): string => (BUILD_RESOURCE[t] === 'food' ? 'food' : 'ore');
+/** A build button's cost line: amount + unit + slots (if >1) + time + effect. */
+const costLine = (t: BuildingType): string => {
+  const slots = BUILD_SLOTS[t] > 1 ? ` · ${BUILD_SLOTS[t]} slots` : '';
+  return `${BUILD_COST[t]} ${costUnit(t)}${slots} · ${BUILD_TIME[t]}s · ${TYPE_EFFECT[t]}`;
+};
+/** Player-facing name of the tech that unlocks a building, if it's still locked. */
+const techNameFor = (t: BuildingType): string | null => {
+  const id = BUILDING_TECH[t];
+  return id ? (TECHS.find((x) => x.id === id)?.name ?? id) : null;
 };
 
 interface Row {
@@ -73,7 +91,7 @@ export function createBuildingsPanel(colony: Colony) {
   for (const t of TYPES) {
     const b = document.createElement('button');
     b.dataset.type = t;
-    b.innerHTML = `<span>${TYPE_LABEL[t]}</span><span class="cost">${BUILD_COST[t]} ore · ${BUILD_TIME[t]}s · ${TYPE_EFFECT[t]}</span>`;
+    b.innerHTML = `<span>${TYPE_LABEL[t]}</span><span class="cost">${costLine(t)}</span>`;
     b.addEventListener('click', () => colony.build(t));
     actions.appendChild(b);
   }
@@ -86,10 +104,18 @@ export function createBuildingsPanel(colony: Colony) {
   let lastOrder = '';
 
   function update() {
-    // build buttons + expand
-    const free = colony.freeSlots;
+    // build buttons + expand. A button is disabled if its tech is unresearched or there
+    // aren't enough free slots for its footprint; locked buildings show a hint.
     actions.querySelectorAll('button[data-type]').forEach((node) => {
-      (node as HTMLButtonElement).disabled = free <= 0;
+      const btn = node as HTMLButtonElement;
+      const t = btn.dataset.type as BuildingType;
+      const locked = !colony.techUnlocked(t);
+      btn.disabled = !colony.canBuild(t);
+      btn.classList.toggle('locked', locked);
+      const tech = techNameFor(t);
+      btn.title = locked && tech ? `Locked — research ${tech} to unlock` : '';
+      const cost = btn.querySelector('.cost') as HTMLElement;
+      if (cost) cost.textContent = locked && tech ? `Locked · needs ${tech}` : costLine(t);
     });
     expandBtn.innerHTML = `<span>Expand +${EXPAND_SLOTS} slots</span><span class="cost">${fmt(colony.expandCost)} ore</span>`;
     expandBtn.disabled = colony.iron < colony.expandCost;
@@ -185,14 +211,14 @@ function createRow(colony: Colony, b: Building): Row {
 
   if (b.state === 'building') {
     el.className = 'brow building';
-    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">building · ${BUILD_COST[b.type]} ore over ${BUILD_TIME[b.type]}s</span></span>
+    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">building · ${BUILD_COST[b.type]} ${costUnit(b.type)} over ${BUILD_TIME[b.type]}s</span></span>
       <span class="status building">0%</span>
       <button class="kill">Cancel</button>
       <div class="bprogress"><div class="fill build" style="width:0%"></div></div>`;
     el.querySelector('.kill')!.addEventListener('click', () => colony.cancel(b.id));
   } else if (b.state === 'demolishing') {
     el.className = 'brow demolishing';
-    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">demolishing · refunds ${Math.round(BUILD_COST[b.type] * REFUND_FRACTION)} ore</span></span>
+    el.innerHTML = `${dot}<span class="bname"><b>${TYPE_LABEL[b.type]}</b> <span class="meta">demolishing · refunds ${Math.round(BUILD_COST[b.type] * REFUND_FRACTION)} ${costUnit(b.type)}</span></span>
       <span class="status demolishing">0%</span>
       <button class="kill">Cancel</button>
       <div class="bprogress"><div class="fill demolish" style="width:0%"></div></div>`;
@@ -239,6 +265,7 @@ function updateRow(colony: Colony, row: Row, b: Building): void {
   const meta = row.el.querySelector('.meta') as HTMLElement;
   if (b.type === 'extractor') meta.textContent = '+8 ore/s';
   else if (b.type === 'greenhouse') meta.textContent = '+6 food/s';
+  else if (b.type === 'garden') meta.textContent = '+4 food/s';
   else meta.textContent = '';
 
   // A standing consumer draws its full power regardless of staffing. Each filled
